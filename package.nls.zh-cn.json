@@ -1,0 +1,9 @@
+{
+  "view.container.title": "扫雷",
+  "view.difficulty.title": "难度",
+  "command.openGame.title": "打开游戏",
+  "command.restart.title": "重新开始",
+  "command.setLanguage.title": "切换语言",
+  "command.selectDifficulty.title": "选择",
+  "config.language.desc": "扫雷插件的界面语言（auto 使用 VSCode 当前语言）。"
+}

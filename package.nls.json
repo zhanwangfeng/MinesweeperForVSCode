@@ -1,0 +1,9 @@
+{
+  "view.container.title": "Minesweeper",
+  "view.difficulty.title": "Difficulty",
+  "command.openGame.title": "Open Game",
+  "command.restart.title": "Restart",
+  "command.setLanguage.title": "Switch Language",
+  "command.selectDifficulty.title": "Select",
+  "config.language.desc": "UI language for the Minesweeper extension (auto uses VSCode locale)."
+}
