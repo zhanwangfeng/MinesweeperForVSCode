@@ -1,6 +1,14 @@
 # Minesweeper for VSCode
 
+[![VS Marketplace](https://vsmarketplacebadges.dev/version-short/zhanwangfeng.minesweeper-for-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=zhanwangfeng.minesweeper-for-vscode)
+[![Installs](https://vsmarketplacebadges.dev/installs/zhanwangfeng.minesweeper-for-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=zhanwangfeng.minesweeper-for-vscode)
+[![Downloads](https://vsmarketplacebadges.dev/downloads/zhanwangfeng.minesweeper-for-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=zhanwangfeng.minesweeper-for-vscode)
+[![Rates](https://vsmarketplacebadges.dev/rating-star/zhanwangfeng.minesweeper-for-vscode.svg)](https://marketplace.visualstudio.com/items?itemName=zhanwangfeng.minesweeper-for-vscode)
+
 A classic Minesweeper game that runs inside Visual Studio Code.
+
+- GitHub: https://github.com/zhanwangfeng/MinesweeperForVSCode
+- VSCode: https://marketplace.visualstudio.com/items?itemName=zhanwangfeng.minesweeper-for-vscode
 
 ## Features
 
