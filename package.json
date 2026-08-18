@@ -2,7 +2,7 @@
   "name": "minesweeper-for-vscode",
   "displayName": "Minesweeper for VSCode",
   "description": "A classic Minesweeper game inside VSCode with difficulty TreeView and i18n (en/cn).",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "zhanwangfeng",
   "icon": "resources/icon.png",
   "engines": {
