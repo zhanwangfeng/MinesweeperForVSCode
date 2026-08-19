@@ -2,6 +2,7 @@
   "view.container.title": "Minesweeper",
   "view.difficulty.title": "Difficulty",
   "command.openGame.title": "Open Game",
+  "command.openWeb.title": "Web Version",
   "command.restart.title": "Restart",
   "command.setLanguage.title": "Switch Language",
   "command.selectDifficulty.title": "Select",

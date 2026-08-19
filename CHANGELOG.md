@@ -5,6 +5,10 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-08-19
+
+### add web game link
+
 ## [1.0.2] - 2026-08-18
 
 ### fix bug

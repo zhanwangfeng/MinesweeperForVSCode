@@ -2,6 +2,7 @@
   "view.container.title": "扫雷",
   "view.difficulty.title": "难度",
   "command.openGame.title": "打开游戏",
+  "command.openWeb.title": "网页版",
   "command.restart.title": "重新开始",
   "command.setLanguage.title": "切换语言",
   "command.selectDifficulty.title": "选择",

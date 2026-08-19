@@ -34,6 +34,13 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Open the web version in the external browser.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('minesweeper.openWeb', () => {
+      vscode.env.openExternal(vscode.Uri.parse('https://codejson.cn/games/mines/'));
+    })
+  );
+
   // TreeView item click / inline "Select".
   context.subscriptions.push(
     vscode.commands.registerCommand('minesweeper.selectDifficulty', (d: Difficulty) => {

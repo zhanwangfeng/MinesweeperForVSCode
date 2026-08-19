@@ -2,7 +2,7 @@
   "name": "minesweeper-for-vscode",
   "displayName": "Minesweeper for VSCode",
   "description": "A classic Minesweeper game inside VSCode with difficulty TreeView and i18n (en/cn).",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "zhanwangfeng",
   "icon": "resources/icon.png",
   "engines": {
@@ -47,6 +47,12 @@
         "category": "Minesweeper"
       },
       {
+        "command": "minesweeper.openWeb",
+        "title": "%command.openWeb.title%",
+        "icon": "$(link-external)",
+        "category": "Minesweeper"
+      },
+      {
         "command": "minesweeper.restart",
         "title": "%command.restart.title%",
         "icon": "$(refresh)",
@@ -73,14 +79,19 @@
       ],
       "view/title": [
         {
+          "command": "minesweeper.openWeb",
+          "when": "view == minesweeper.difficulty",
+          "group": "navigation@1"
+        },
+        {
           "command": "minesweeper.openGame",
           "when": "view == minesweeper.difficulty",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "minesweeper.setLanguage",
           "when": "view == minesweeper.difficulty",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
