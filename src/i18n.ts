@@ -18,6 +18,9 @@ export interface Dict {
   en: string;
   cn: string;
   currentDifficulty: string;
+  prob: string;
+  probOn: string;
+  probOff: string;
 }
 
 const en: Dict = {
@@ -36,7 +39,10 @@ const en: Dict = {
   language: 'Language',
   en: 'English',
   cn: '中文',
-  currentDifficulty: 'Current'
+  currentDifficulty: 'Current',
+  prob: 'Odds',
+  probOn: 'On: hover an unrevealed cell to see mine odds',
+  probOff: 'Off: click to enable odds hints'
 };
 
 const cn: Dict = {
@@ -55,7 +61,10 @@ const cn: Dict = {
   language: '语言',
   en: 'English',
   cn: '中文',
-  currentDifficulty: '当前'
+  currentDifficulty: '当前',
+  prob: '概率',
+  probOn: '已开启：悬停未翻开格子显示雷概率',
+  probOff: '已关闭：点击开启概率提示'
 };
 
 export function getDict(lang: Lang): Dict {

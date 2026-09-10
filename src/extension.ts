@@ -78,6 +78,18 @@ export function activate(context: vscode.ExtensionContext) {
       );
     })
   );
+
+  // Toggle the mine-odds (probability) hints in the game panel.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('minesweeper.toggleProbability', () => {
+      if (!MinesweeperPanel.current) {
+        vscode.commands.executeCommand('minesweeper.openGame');
+      }
+      if (MinesweeperPanel.current) {
+        MinesweeperPanel.current.toggleProbability();
+      }
+    })
+  );
 }
 
 export function deactivate() {}

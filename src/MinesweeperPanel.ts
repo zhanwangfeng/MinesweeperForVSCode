@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Minesweeper, Difficulty } from './game';
+import { Minesweeper, Difficulty, computeProbabilities } from './game';
 import { getDict, Lang } from './i18n';
 
 // Manages the webview panel that renders the game board.
@@ -13,6 +13,7 @@ export class MinesweeperPanel {
   private timer: NodeJS.Timeout | undefined;
   private seconds = 0;
   private disposables: vscode.Disposable[] = [];
+  private probEnabled = false; // 概率提示开关
 
   private constructor(
     panel: vscode.WebviewPanel,
@@ -116,7 +117,18 @@ export class MinesweeperPanel {
       case 'flash':
         // Forward to webview (no-op safety, handled client side above)
         break;
+      case 'toggleProb':
+        this.probEnabled = !this.probEnabled;
+        this.update();
+        break;
     }
+  }
+
+  // 供命令面板调用：切换概率提示开关
+  toggleProbability(): boolean {
+    this.probEnabled = !this.probEnabled;
+    this.update();
+    return this.probEnabled;
   }
 
   private ensureTimer(): void {
@@ -141,6 +153,26 @@ export class MinesweeperPanel {
     this.panel.webview.html = this.getHtml();
   }
 
+  // 概率提示：仅在开关打开且对局进行中时计算，结果以 "r,c" -> 概率 的普通对象下发。
+  private probMapFor(g: Minesweeper): { [key: string]: number } | null {
+    if (!this.probEnabled) { return null; }
+    if (g.status === 'won' || g.status === 'lost') { return null; }
+    let result: Map<number, number> | null = null;
+    try {
+      result = computeProbabilities(g);
+    } catch (e) {
+      result = null;
+    }
+    if (!result) { return null; }
+    const out: { [key: string]: number } = {};
+    result.forEach((p, id) => {
+      const r = Math.floor(id / g.cols);
+      const c = id % g.cols;
+      out[`${r},${c}`] = p;
+    });
+    return out;
+  }
+
   private getHtml(): string {
     const d = getDict(this.lang);
     const g = this.game;
@@ -152,7 +184,9 @@ export class MinesweeperPanel {
       remaining: g.remainingMines(),
       seconds: this.seconds,
       difficulty: this.lang === 'cn' ? this.difficulty.labelCn : this.difficulty.label,
-      lang: this.lang
+      lang: this.lang,
+      probEnabled: this.probEnabled,
+      prob: this.probMapFor(g)
     };
 
     const labels = JSON.stringify({ d: d, state: state });
@@ -278,6 +312,35 @@ export class MinesweeperPanel {
   }
   .status { margin-top: 14px; font-size: 18px; font-weight: 700; min-height: 22px; animation: popIn 0.3s ease; }
   .hint { margin-top: 8px; font-size: 12px; opacity: 0.65; text-align: center; transition: opacity 0.3s ease; }
+  /* 概率提示按钮 */
+  .prob-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:#2a3140; color:#9aa4b8; border:1px solid #3d4557;
+    padding:8px 14px; border-radius:6px; cursor:pointer;
+    font-size:13px; font-weight:600; font-family:inherit;
+    transition:background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+  }
+  .prob-btn::before{
+    content:'\\2715'; flex:none; font-size:12px; font-weight:700; line-height:1;
+    color:#6b7488; transition:color 0.18s ease, text-shadow 0.18s ease;
+  }
+  .prob-btn:hover{background:#333d50; color:#b3bdcd; transform:translateY(-1px); box-shadow:none;}
+  .prob-btn:active{transform:translateY(0);}
+  .prob-btn.on{
+    background:#0e3a52; color:#d3efff; border-color:#4fc3f7;
+    box-shadow:0 0 10px rgba(79,195,247,0.25);
+  }
+  .prob-btn.on::before{content:'\\2713'; color:#4fc3f7; text-shadow:0 0 6px rgba(79,195,247,0.9);}
+  .prob-btn.on:hover{background:#134a6b; color:#eaf8ff;}
+  /* 概率悬浮提示 */
+  .prob-tip{
+    position:fixed; z-index:200; pointer-events:none; white-space:nowrap;
+    background:rgba(74,82,96,0.96); color:#fff; border:1px solid #4fc3f7;
+    border-radius:6px; padding:4px 8px; font-size:12px; font-weight:700;
+    box-shadow:0 4px 12px rgba(0,0,0,0.5);
+    opacity:0; transition:opacity 0.1s ease;
+  }
+  .prob-tip.show{opacity:1;}
 </style>
 </head>
 <body>
@@ -287,17 +350,61 @@ export class MinesweeperPanel {
       <div class="stat mines"><span class="ico">💣</span><b id="mines">0</b></div>
       <div class="stat time"><span class="ico">⏱</span><b id="time">0</b></div>
       <button id="restart">🔄 <span id="restartLabel"></span></button>
+      <button type="button" id="probToggle" class="prob-btn"></button>
     </div>
     <div class="board" id="board"></div>
     <div class="status" id="status"></div>
     <div class="hint" id="hint"></div>
   </div>
+  <div class="prob-tip" id="probTip"></div>
 
 <script>
   const vscode = acquireVsCodeApi();
   const data = ${labels};
   let D = data.d;
   let S = data.state;
+  const probTip = document.getElementById('probTip');
+
+  // 概率提示按钮：文字取自语言包，开/关用配色 + 状态点区分
+  function updateProbBtn() {
+    const btn = document.getElementById('probToggle');
+    if (!btn) { return; }
+    btn.textContent = D.prob;
+    btn.classList.toggle('on', !!S.probEnabled);
+    btn.title = S.probEnabled ? D.probOn : D.probOff;
+    btn.setAttribute('aria-pressed', S.probEnabled ? 'true' : 'false');
+  }
+
+  function fmtProb(prob) {
+    const v = Math.min(1, Math.max(0, prob)) * 100;
+    if (v <= 0.05) { return '0%'; }
+    if (v >= 99.95) { return '100%'; }
+    if (v < 1) { return '<1%'; }
+    if (v < 10) { return v.toFixed(1) + '%'; }
+    return Math.round(v) + '%';
+  }
+
+  function hideTip() { if (probTip) { probTip.classList.remove('show'); } }
+
+  function showTip(el, r, c) {
+    if (!S.probEnabled || !S.prob || !probTip) { return; }
+    const cell = S.grid[r][c];
+    if (cell.revealed || cell.flagged) { return; }
+    const p = S.prob[r + ',' + c];
+    if (p === undefined) { return; }
+    const rect = el.getBoundingClientRect();
+    probTip.textContent = '💣 ' + fmtProb(p);
+    const cx = Math.min(window.innerWidth - 30, Math.max(30, rect.left + rect.width / 2));
+    probTip.style.left = cx + 'px';
+    if (rect.top < 40) {
+      probTip.style.top = (rect.bottom + 4) + 'px';
+      probTip.style.transform = 'translate(-50%, 0)';
+    } else {
+      probTip.style.top = (rect.top - 4) + 'px';
+      probTip.style.transform = 'translate(-50%, -100%)';
+    }
+    probTip.classList.add('show');
+  }
 
   function render() {
     document.getElementById('title').textContent = D.title + ' · ' + S.difficulty;
@@ -305,6 +412,8 @@ export class MinesweeperPanel {
     document.getElementById('time').textContent = S.seconds;
     document.getElementById('restartLabel').textContent = D.reset;
     document.getElementById('hint').textContent = D.reveal + ' ' + D.flag;
+    updateProbBtn();
+    hideTip();
 
     const board = document.getElementById('board');
     board.style.gridTemplateColumns = 'repeat(' + S.cols + ', 28px)';
@@ -369,6 +478,9 @@ export class MinesweeperPanel {
         });
         el.addEventListener('touchmove', cancelPress);
         el.addEventListener('touchcancel', cancelPress);
+        // 概率提示：悬停未翻开格子显示雷概率
+        el.addEventListener('mouseenter', () => showTip(el, r, c));
+        el.addEventListener('mouseleave', hideTip);
         board.appendChild(el);
       }
     }
@@ -381,6 +493,10 @@ export class MinesweeperPanel {
 
   document.getElementById('restart').addEventListener('click', () =>
     vscode.postMessage({ command: 'restart' }));
+
+  // 概率提示开关
+  document.getElementById('probToggle').addEventListener('click', () =>
+    vscode.postMessage({ command: 'toggleProb' }));
 
   function flashCells(cells) {
     cells.forEach(([r, c]) => {

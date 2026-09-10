@@ -6,5 +6,6 @@
   "command.restart.title": "重新开始",
   "command.setLanguage.title": "切换语言",
   "command.selectDifficulty.title": "选择",
+  "command.toggleProbability.title": "开关雷概率提示",
   "config.language.desc": "扫雷插件的界面语言（auto 使用 VSCode 当前语言）。"
 }
