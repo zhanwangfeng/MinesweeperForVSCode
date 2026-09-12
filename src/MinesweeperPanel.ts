@@ -52,7 +52,7 @@ export class MinesweeperPanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
+        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'multi', 'webview')]
       }
     );
     MinesweeperPanel.current = new MinesweeperPanel(panel, extensionUri, difficulty, lang);

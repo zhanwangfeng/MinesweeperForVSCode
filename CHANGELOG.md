@@ -5,6 +5,12 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-09-12
+
+### Fixed
+- Fixed the published package missing the `ws` runtime dependency: installing from the Marketplace left the extension unable to activate (TreeView showed "There is no data provider registered" and command titles rendered as `%command...%` placeholders). `node_modules/ws` is now explicitly bundled, so LAN online multiplayer and the in-room editable nickname work on a fresh install.
+- Corrected `MinesweeperPanel` webview `localResourceRoots` that pointed at a non-existent `src/webview` directory.
+
 ## [1.2.0] - 2026-09-11
 
 ### Added
@@ -25,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Fixed a picker popup glitch where it snapped sideways once: the popup is now centered under the cursor by measuring its width (no `translateX` transform fighting the open animation).
 - Dark glassmorphism UI with a 20-second ring countdown, total-time countdown, beveled board cells and restrained animations; all styles are inlined and follow the VSCode theme variables.
 - Chinese localization for the online UI and the two new command titles (创建房间(联机) / 加入房间(联机)).
+- Editable nickname: every player (the host included) can set their own display name after joining by clicking the ✎ button next to their name in the player list; for clients the change is sent to the host and broadcast to all, while the host updates its own name directly. Names are capped at 16 characters.
 
 ### Changed
 - Online difficulty labels are now **小 / 中 / 大** (Small / Medium / Large) instead of Easy / Medium / Hard.

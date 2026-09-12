@@ -291,6 +291,13 @@
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
   input.nick:focus { border-color: var(--stroke-strong); box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.18); }
+  .name-edit { width: 104px; padding: 2px 6px; font-size: 12.5px; }
+  .name-edit-btn {
+    flex: none; margin-left: 6px; width: 20px; height: 20px; line-height: 1; padding: 0;
+    border-radius: 6px; border: 1px solid var(--stroke); background: rgba(0, 0, 0, 0.25);
+    color: var(--muted); cursor: pointer; font-size: 11px;
+  }
+  .name-edit-btn:hover { color: var(--fg); border-color: var(--stroke-strong); }
 
   .hint { margin-top: auto; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
 
@@ -469,6 +476,10 @@
   };
 
   let myId = IS_HOST ? HOST_ID : null;
+  // Local-player nickname editing. The local player (host or client) can edit
+  // their own display name after joining; the change is pushed to the host.
+  let editingName = false;
+  let myNameDraft = '';
   let hostAddr = '';
   let connText = D.connWaitingHost || '';
   let connKind = 'warn';
@@ -751,7 +762,33 @@
       prevScores[p.id] = p.score;
 
       row.appendChild(dot);
-      row.appendChild(nm);
+      if (p.id === myId && editingName) {
+        // Inline nickname editor for the local player (host or client).
+        const inp = document.createElement('input');
+        inp.className = 'nick name-edit';
+        inp.maxLength = 16;
+        inp.value = myNameDraft;
+        inp.placeholder = D.nicknamePlaceholder || '';
+        inp.addEventListener('input', () => { myNameDraft = inp.value; });
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commitName(); }
+          else if (e.key === 'Escape') { e.preventDefault(); editingName = false; render(); }
+        });
+        inp.addEventListener('blur', () => { commitName(); });
+        row.appendChild(inp);
+        setTimeout(() => { try { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; } catch (e) { /* ignore */ } }, 0);
+      } else {
+        row.appendChild(nm);
+        if (p.id === myId) {
+          const edit = document.createElement('button');
+          edit.className = 'name-edit-btn';
+          edit.type = 'button';
+          edit.textContent = '✎';
+          edit.title = D.nicknameEdit || 'Set nickname';
+          edit.addEventListener('click', () => { editingName = true; myNameDraft = p.name; render(); });
+          row.appendChild(edit);
+        }
+      }
       row.appendChild(scWrap);
       wrap.appendChild(row);
     });
@@ -1264,6 +1301,25 @@
   function hostSendTo(id, msg) { toExt(Object.assign({}, msg, { to: id })); }
   function hostBroadcastState() { hostBroadcast({ type: 'state', state: state }); }
 
+  /** Commits the local player's edited nickname. Host updates its own state and
+   *  broadcasts; clients send a `rename` message for the host to apply. */
+  function commitName() {
+    if (!editingName) { return; }
+    editingName = false;
+    const p = (state.players || []).find((x) => x.id === myId);
+    if (!p) { render(); return; }
+    const newName = (myNameDraft || '').trim().slice(0, 16) || p.name;
+    if (newName !== p.name) {
+      p.name = newName;
+      if (IS_HOST) {
+        hostBroadcastState();
+      } else {
+        toExt({ type: 'rename', name: newName });
+      }
+    }
+    render();
+  }
+
   function hostEnsurePlayer(id, name) {
     let p = (state.players || []).find((x) => x.id === id);
     const clean = (name && String(name).trim()) || '';
@@ -1388,6 +1444,16 @@
         break;
       case 'pick':
         if (msg.from) { hostOnPick(msg.from, msg); }
+        break;
+      case 'rename':
+        // A client changed its nickname; apply it to the authoritative state.
+        if (msg.from) {
+          const p = (state.players || []).find((x) => x.id === msg.from);
+          if (p) {
+            const n = (msg.name && String(msg.name).trim().slice(0, 16)) || p.name;
+            if (n !== p.name) { p.name = n; hostBroadcastState(); render(); }
+          }
+        }
         break;
       default:
         break;

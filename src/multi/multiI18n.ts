@@ -43,6 +43,7 @@ export interface MultiDict {
   score: string;
   nickname: string;
   nicknamePlaceholder: string;
+  nicknameEdit: string;
   hostAddr: string;
   connHostWaiting: string;
   connClientConnecting: string;
@@ -92,6 +93,7 @@ const en: MultiDict = {
   score: 'Score',
   nickname: 'Nickname',
   nicknamePlaceholder: 'Enter a nickname',
+  nicknameEdit: 'Set nickname',
   hostAddr: 'Room address: {addr}',
   connHostWaiting: 'Room is open — waiting for players…',
   connClientConnecting: 'Connecting to {addr}…',
@@ -141,6 +143,7 @@ const cn: MultiDict = {
   score: '分数',
   nickname: '昵称',
   nicknamePlaceholder: '输入昵称',
+  nicknameEdit: '设置昵称',
   hostAddr: '房间地址：{addr}',
   connHostWaiting: '房间服务已启动，等待玩家加入…',
   connClientConnecting: '正在连接 {addr}…',
