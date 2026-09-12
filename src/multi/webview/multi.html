@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+<title>Minesweeper · Online</title>
+<style>
+  :root {
+    --vscode: var(--vscode-editor-background, #1e1e1e);
+    --fg: var(--vscode-editor-foreground, #d4d4d4);
+    --muted: #9aa4b8;
+    --accent: #4fc3f7;
+    --accent-2: #81c784;
+    --warn: #fbc02d;
+    --danger: #f44336;
+    --ok: #4caf50;
+    --glass: rgba(37, 42, 54, 0.62);
+    --glass-strong: rgba(24, 28, 37, 0.86);
+    --stroke: rgba(255, 255, 255, 0.10);
+    --stroke-strong: rgba(79, 195, 247, 0.45);
+    --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+
+    /* Fixed per-cell size for the online board. All cell dimensions and the
+       in-cell text/icon sizes are derived from this so the board never
+       stretches with the viewport and stays readable when scrolled. */
+    --cell: 32px;
+    --cell-gap: 2px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { height: 100%; }
+
+  body {
+    margin: 0;
+    padding: 16px 18px 24px;
+    height: 100vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    color: var(--fg);
+    font-family: var(--vscode-font-family, "PingFang SC", "Segoe UI", sans-serif);
+    font-size: 13px;
+    background:
+      radial-gradient(1100px 520px at 12% -12%, rgba(79, 195, 247, 0.16), transparent 62%),
+      radial-gradient(900px 480px at 108% 8%, rgba(129, 199, 132, 0.13), transparent 60%),
+      linear-gradient(180deg, #12161d, var(--vscode));
+  }
+
+  /* ------------------------------- topbar -------------------------------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 12px 16px; margin-bottom: 14px;
+    background: var(--glass);
+    border: 1px solid var(--stroke);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo {
+    width: 40px; height: 40px; flex: none; display: grid; place-items: center;
+    border-radius: 12px; font-size: 21px;
+    background: linear-gradient(145deg, rgba(79,195,247,0.28), rgba(14,99,156,0.42));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 6px 16px rgba(0,0,0,0.35);
+  }
+  .title {
+    font-size: 17px; font-weight: 700; letter-spacing: 0.4px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    background: linear-gradient(90deg, #4fc3f7, #81c784);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .conn { margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .conn.ok { color: var(--ok); }
+  .conn.warn { color: var(--warn); }
+  .conn.err { color: var(--danger); }
+
+  .clocks { display: flex; align-items: center; gap: 18px; flex: none; }
+  .ringwrap { display: flex; align-items: center; gap: 10px; }
+  .ring {
+    width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+    background: conic-gradient(var(--accent) 360deg, rgba(255,255,255,0.10) 0deg);
+    transition: background 0.2s linear;
+  }
+  .ring.danger { animation: pulse 0.9s ease-in-out infinite; }
+  .ring-inner {
+    width: 40px; height: 40px; border-radius: 50%; background: #12171f;
+    display: grid; place-items: center; font-weight: 800; font-size: 15px;
+    color: #e8f6ff; font-variant-numeric: tabular-nums;
+  }
+  .ring.danger .ring-inner { color: #ffd0cc; }
+  .ring-cap { font-size: 11px; color: var(--muted); line-height: 1.35; }
+  .ring-cap b { display: block; font-size: 13px; color: var(--fg); }
+  .totalwrap { text-align: right; }
+  .total-cap { font-size: 11px; color: var(--muted); }
+  .total-val {
+    font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums;
+    color: #d7f0ff; text-shadow: 0 0 14px rgba(79, 195, 247, 0.35);
+  }
+  .total-val.danger { color: #ffb3ad; text-shadow: 0 0 14px rgba(244, 67, 54, 0.45); }
+
+  /* ------------------------------- layout -------------------------------- */
+  .layout {
+    display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px;
+    align-items: stretch; flex: 1 1 auto; min-height: 0;
+  }
+
+  /* Two-layer board: .stage is the fixed frame (border/glass) and stays put;
+     .board-scroll is the inner viewport that scrolls the grid. The mask
+     (.overlay) lives on the frame layer, so scrolling the grid never moves it. */
+  .stage {
+    position: relative; padding: 14px; overflow: hidden;
+    display: flex; flex-direction: column;
+    background: var(--glass); border: 1px solid var(--stroke);
+    border-radius: 16px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  }
+  .board-scroll {
+    flex: 1 1 auto; min-height: 0; overflow: auto;
+    padding: 8px; border-radius: 12px; background: #0f131a;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.65), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .board {
+    display: grid; gap: var(--cell-gap);
+    /* Fixed intrinsic size = total cells; never shrinks. */
+    grid-template-columns: repeat(var(--cols, 9), var(--cell));
+  }
+  .board.dim { opacity: 0.45; }
+
+  .cell {
+    position: relative; width: var(--cell); height: var(--cell); border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: calc(var(--cell) * 0.75); color: #16202c;
+    user-select: none; overflow: hidden;
+    background: linear-gradient(145deg, #d5dbe7, #9fabbd);
+    box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.6), inset -2px -2px 0 rgba(0, 0, 0, 0.32);
+    transition: transform 0.08s ease, filter 0.12s ease;
+  }
+  .cell.clickable { cursor: pointer; }
+  .cell.clickable:hover { filter: brightness(1.12); transform: translateY(-1px); }
+  .cell.clickable:active { transform: scale(0.93); }
+  .cell.revealed {
+    background: linear-gradient(145deg, #e9edf5, #d3d9e6);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06); color: #333;
+  }
+  .cell.mine {
+    background: radial-gradient(circle at 50% 40%, #ff8a80, #c62828);
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4); font-size: calc(var(--cell) * 0.75);
+  }
+  .cell.picked { outline: 2px solid var(--pc, var(--accent)); outline-offset: -2px; }
+  .cell.n1 { color: #1976d2; } .cell.n2 { color: #388e3c; }
+  .cell.n3 { color: #d32f2f; } .cell.n4 { color: #7b1fa2; }
+  .cell.n5 { color: #c2185b; } .cell.n6 { color: #0097a7; }
+  .cell.n7 { color: #455a64; } .cell.n8 { color: #000; }
+  .cell.flash-ok { animation: flashOk 0.7s ease; }
+  .cell.flash-bad { animation: flashBad 0.7s ease; }
+  @keyframes flashOk {
+    0% { box-shadow: inset 0 0 0 2px rgba(76, 175, 80, 0); }
+    40% { box-shadow: inset 0 0 0 3px var(--ok), 0 0 14px 2px rgba(76, 175, 80, 0.6); }
+    100% { box-shadow: inset 0 0 0 2px rgba(76, 175, 80, 0); }
+  }
+  @keyframes flashBad {
+    0% { box-shadow: inset 0 0 0 2px rgba(244, 67, 54, 0); }
+    40% { box-shadow: inset 0 0 0 3px var(--danger), 0 0 14px 2px rgba(244, 67, 54, 0.6); }
+    100% { box-shadow: inset 0 0 0 2px rgba(244, 67, 54, 0); }
+  }
+
+  .badges {
+    position: absolute; inset: 1px; display: flex; flex-wrap: wrap;
+    align-items: center; justify-content: center; gap: 1px; pointer-events: none;
+  }
+  .badge {
+    width: calc(var(--cell) * 0.4); aspect-ratio: 1 / 1; border-radius: 3px;
+    display: grid; place-items: center;
+    font-size: calc(var(--cell) * 0.33); font-weight: 800; color: #0b0f16;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  .badge.b-me { box-shadow: 0 0 0 2px #fff, 0 0 9px rgba(255, 255, 255, 0.85); }
+
+  /* Per-cell aggregate tally: top-left green = "not mine" votes, bottom-right
+     red = "is mine" votes. Hidden until picks are revealed to the player. */
+  .cell-stat {
+    position: absolute; font-size: calc(var(--cell) * 0.33); font-weight: 800; line-height: 1;
+    padding: 1px 3px; border-radius: 5px; pointer-events: none; font-variant-numeric: tabular-nums;
+  }
+  .stat-safe {
+    top: 1px; left: 2px; color: #b9f6ca;
+    background: rgba(27, 94, 32, 0.55); border: 1px solid rgba(129, 199, 132, 0.5);
+  }
+  .stat-mine {
+    bottom: 1px; right: 2px; color: #ff8a80;
+    background: rgba(122, 30, 30, 0.55); border: 1px solid rgba(244, 67, 54, 0.5);
+  }
+
+  /* ------------------------------ sidebar -------------------------------- */
+  .sidebar {
+    padding: 14px; display: flex; flex-direction: column; gap: 12px;
+    background: var(--glass); border: 1px solid var(--stroke);
+    border-radius: 16px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+    min-height: 0; overflow: hidden;
+  }
+  .panel-title {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; font-weight: 700; color: var(--fg); letter-spacing: 0.3px;
+  }
+  .pcount {
+    font-size: 11px; color: var(--accent); background: rgba(79, 195, 247, 0.14);
+    border: 1px solid var(--stroke-strong); border-radius: 999px; padding: 1px 8px;
+  }
+  .players { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .prow {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid transparent;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .prow.me { border-color: var(--stroke-strong); background: rgba(79, 195, 247, 0.10); }
+  .prow.off { opacity: 0.45; }
+  .pdot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 8px rgba(0,0,0,0.5); }
+  .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+  .ptag {
+    margin-left: 5px; font-size: 9px; padding: 1px 5px; border-radius: 6px;
+    background: rgba(251, 192, 45, 0.18); color: #ffdf8a; border: 1px solid rgba(251, 192, 45, 0.35);
+  }
+  .ptag.you { background: rgba(79, 195, 247, 0.18); color: #bfeaff; border-color: var(--stroke-strong); }
+  .ptag.wait { background: rgba(128, 128, 128, 0.18); color: #cdd3da; border-color: rgba(160, 160, 160, 0.4); }
+  .pkick {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    flex: none; width: 18px; height: 18px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; line-height: 1; border: 1px solid transparent;
+  }
+  .pkick.safe { background: rgba(129, 199, 132, 0.18); color: #b9f6ca; border-color: rgba(129, 199, 132, 0.4); }
+  .pkick.mine { background: rgba(244, 67, 54, 0.18); color: #ff8a80; border-color: rgba(244, 67, 54, 0.4); }
+  .pscore {
+    font-weight: 800; font-variant-numeric: tabular-nums; font-size: 14px; min-width: 22px; text-align: right;
+  }
+  .pscore.up { color: var(--ok); } .pscore.down { color: var(--danger); }
+  .pscore-wrap { position: relative; display: inline-flex; align-items: baseline; }
+  .pdelta {
+    /* Sits just to the LEFT of the score, absolutely positioned so the score
+       number never shifts when the badge appears or disappears. */
+    position: absolute; right: 100%; margin-right: 6px;
+    font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums;
+    white-space: nowrap; opacity: 1; transition: opacity 0.35s ease;
+  }
+  .pdelta.anim { animation: pdeltaIn 0.25s ease; }
+  /* Bonus (positive) shown in red, penalty (negative) shown in green, per spec. */
+  .pdelta.up { color: var(--danger); }
+  .pdelta.down { color: var(--ok); }
+  .pdelta.gone { opacity: 0; }
+  @keyframes pdeltaIn { from { opacity: 0; transform: translateY(-3px) scale(0.7); } to { opacity: 1; transform: none; } }
+
+  .divider { height: 1px; background: var(--stroke); }
+  label.dbg { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+  label.dbg input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+  .ctl-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .segmented { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); }
+  .seg {
+    flex: 1; border: none; cursor: pointer; padding: 6px 4px; border-radius: 8px;
+    background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
+    font-family: inherit; transition: background 0.18s ease, color 0.18s ease;
+  }
+  .seg:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: var(--fg); }
+  .seg.active { background: linear-gradient(145deg, rgba(79,195,247,0.28), rgba(14,99,156,0.4)); color: #eaf8ff; }
+  .seg:disabled { opacity: 0.55; cursor: default; }
+
+  button.primary {
+    width: 100%; margin-top: 10px; padding: 10px 14px; border: none; border-radius: 10px;
+    cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 700; color: #eaf8ff;
+    background: linear-gradient(145deg, #1288c9, #0e639c);
+    box-shadow: 0 6px 16px rgba(14, 99, 156, 0.45);
+    transition: transform 0.12s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  }
+  button.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(14, 99, 156, 0.55); }
+  button.primary:active:not(:disabled) { transform: translateY(0); }
+  button.primary:disabled { opacity: 0.42; cursor: default; box-shadow: none; }
+
+  button.ghost {
+    width: 100%; margin-top: 8px; padding: 9px 14px; border-radius: 10px;
+    cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 700;
+    color: #bfeaff; background: rgba(79, 195, 247, 0.10);
+    border: 1px solid var(--stroke-strong);
+    transition: transform 0.12s ease, background 0.18s ease;
+  }
+  button.ghost:hover { transform: translateY(-1px); background: rgba(79, 195, 247, 0.2); }
+  button.ghost:active { transform: translateY(0); }
+
+  input.nick {
+    width: 100%; padding: 8px 10px; border-radius: 9px; font-family: inherit; font-size: 13px;
+    color: var(--fg); background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--stroke); outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  input.nick:focus { border-color: var(--stroke-strong); box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.18); }
+
+  .hint { margin-top: auto; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+
+  /* ------------------------------ overlay -------------------------------- */
+  .overlay {
+    position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    padding: 18px; border-radius: 16px; background: rgba(10, 13, 18, 0.72);
+    backdrop-filter: blur(4px); animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .ov-card {
+    width: min(100%, 360px); padding: 20px 22px; text-align: center;
+    background: var(--glass-strong); border: 1px solid var(--stroke);
+    border-radius: 16px; box-shadow: var(--shadow);
+    animation: popIn 0.3s ease;
+  }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+  .ov-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #eaf8ff; }
+  .ov-addr {
+    font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: var(--accent);
+    background: rgba(79, 195, 247, 0.12); border: 1px dashed var(--stroke-strong);
+    border-radius: 8px; padding: 6px 10px; margin: 8px auto; display: inline-block;
+  }
+  .ov-sub { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+
+  .rank-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+  .rank-row {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; font-size: 13px;
+  }
+  .rank-row.me { border-color: var(--stroke-strong); background: rgba(79, 195, 247, 0.1); }
+  .rank-row.r1 { background: linear-gradient(90deg, rgba(255, 215, 0, 0.18), rgba(255, 215, 0, 0.03)); }
+  .rank-row.r2 { background: linear-gradient(90deg, rgba(192, 192, 192, 0.16), rgba(192, 192, 192, 0.03)); }
+  .rank-row.r3 { background: linear-gradient(90deg, rgba(205, 127, 50, 0.16), rgba(205, 127, 50, 0.03)); }
+  .rank-no { width: 26px; text-align: center; font-weight: 800; }
+  .rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .rank-score { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------ picker --------------------------------- */
+  .picker {
+    position: fixed; z-index: 60; display: none; gap: 6px; padding: 6px;
+    background: var(--glass-strong); border: 1px solid var(--stroke-strong);
+    border-radius: 12px; box-shadow: var(--shadow);
+    animation: popIn 0.16s ease;
+  }
+  .pk {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    padding: 7px 11px; border-radius: 9px; border: 1px solid var(--stroke);
+    background: rgba(255, 255, 255, 0.05); color: var(--fg);
+    font-family: inherit; font-size: 12.5px; font-weight: 700;
+    transition: transform 0.1s ease, background 0.16s ease, border-color 0.16s ease;
+  }
+  .pk:hover { transform: translateY(-1px); }
+  .pk.mine:hover { background: rgba(244, 67, 54, 0.22); border-color: rgba(244, 67, 54, 0.6); }
+  .pk.safe:hover { background: rgba(76, 175, 80, 0.22); border-color: rgba(76, 175, 80, 0.6); }
+
+  /* ------------------------------- toast --------------------------------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(14px);
+    padding: 9px 16px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+    background: var(--glass-strong); border: 1px solid var(--stroke-strong);
+    color: #dff3ff; box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease; max-width: 90vw;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">💣</div>
+      <div>
+        <div class="title" id="title">Minesweeper · Online</div>
+        <div class="conn" id="connStatus"></div>
+      </div>
+    </div>
+    <div class="clocks">
+      <div class="ringwrap">
+        <div class="ring" id="roundRing"><div class="ring-inner"><span id="roundNum">20</span></div></div>
+        <div class="ring-cap"><b id="roundLabel">Round 0</b><span id="roundSub"></span></div>
+      </div>
+      <div class="totalwrap">
+        <div class="total-cap" id="totalLabel">Total</div>
+        <div class="total-val" id="totalVal">3:00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div id="hostControls">
+        <div class="ctl-label" id="sizeLabel">Board size</div>
+        <div class="segmented" id="diffs"></div>
+        <button class="primary" id="startBtn"><span>Start Game</span></button>
+        <button class="ghost" id="addBotBtn">🤖 <span id="addBotLabel">Add Bot</span></button>
+        <label class="dbg" id="dbgRow"><input type="checkbox" id="dbgChk" /> <span id="dbgLabel">Debug</span></label>
+      </div>
+      <div id="clientControls" style="display:none">
+        <div class="ctl-label" id="nickLabel">Nickname</div>
+        <input class="nick" id="nickInput" maxlength="16" />
+      </div>
+      <div class="divider"></div>
+      <div class="panel-title"><span id="playersTitle">Players</span><span class="pcount" id="pcount">1</span></div>
+      <div class="players" id="players"></div>
+      <div class="hint" id="hintText"></div>
+    </aside>
+
+    <div class="stage">
+      <div class="board-scroll">
+        <div class="board" id="board"></div>
+      </div>
+      <div class="overlay" id="overlay"></div>
+    </div>
+  </div>
+
+  <div class="picker" id="picker">
+    <button class="pk mine" data-g="1">💣 <span id="pkMine">Mine</span></button>
+    <button class="pk safe" data-g="0">✓ <span id="pkSafe">Safe</span></button>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  const BOOTSTRAP = __MULTI_BOOTSTRAP_VALUE__;
+  if (!BOOTSTRAP || typeof BOOTSTRAP !== 'object' || !BOOTSTRAP.dict) {
+    document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif">Missing multiplayer parameters.</div>';
+    return;
+  }
+
+  const D = BOOTSTRAP.dict;
+  const DIFFS = BOOTSTRAP.difficulties || [];
+  const LANG = BOOTSTRAP.lang || 'cn';
+  const ROLE = BOOTSTRAP.role || 'client';
+  const IS_HOST = ROLE === 'host';
+  const HOST_ID = BOOTSTRAP.hostId || 'HOST';
+
+  // Timing values come from the extension (src/multi/multiConfig.ts) so there is
+  // exactly one source of truth; the fallbacks only guard against a stale build.
+  // Use nullish coalescing so a value of 0 (e.g. RESOLVE_PAUSE_MS) is honoured
+  // instead of being treated as "missing" by `||`.
+  const ROUND_MS = BOOTSTRAP.roundMs ?? 20000;
+  const TOTAL_MS = BOOTSTRAP.totalMs ?? 180000;
+  // Fallback total only; the real match length comes from the selected difficulty.
+  const curTotalMs = () => {
+    const d = DIFFS.find((x) => x.id === state.difficultyId);
+    return (d && d.totalMs) || TOTAL_MS;
+  };
+  const RESOLVE_PAUSE_MS = BOOTSTRAP.resolvePauseMs ?? 1500;
+  const REVEAL_DELAY_MS = BOOTSTRAP.revealDelayMs ?? 3000;
+  const PALETTE = ['#4fc3f7', '#81c784', '#fbc02d', '#f06292', '#ba68c8', '#4db6ac', '#ff8a65', '#9575cd', '#aed581', '#64b5f6'];
+
+  let vscodeApi = null;
+  try { if (typeof acquireVsCodeApi === 'function') { vscodeApi = acquireVsCodeApi(); } } catch (e) { vscodeApi = null; }
+  const toExt = (msg) => { if (!vscodeApi) { return; } try { vscodeApi.postMessage(msg); } catch (e) { /* ignore */ } };
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (tpl, map) => String(tpl == null ? '' : tpl).replace(/\{(\w+)\}/g, (m, k) => (map && map[k] != null ? String(map[k]) : m));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmtTime = (ms) => {
+    const total = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + ':' + (s < 10 ? '0' + s : '' + s);
+  };
+
+  document.documentElement.lang = LANG === 'cn' ? 'zh-CN' : 'en';
+
+  // ------------------------------- state ----------------------------------
+  const first = DIFFS[0] || { id: 'easy', rows: 9, cols: 9, mines: 10 };
+  let state = {
+    phase: 'lobby', difficultyId: first.id, rows: first.rows, cols: first.cols, mines: first.mines,
+    round: 0, resolving: false, players: [], revealed: [], picks: []
+  };
+
+  let myId = IS_HOST ? HOST_ID : null;
+  let hostAddr = '';
+  let connText = D.connWaitingHost || '';
+  let connKind = 'warn';
+  let lastTick = { roundRemain: ROUND_MS, totalRemain: curTotalMs() };
+  let lastRanking = null;
+  let revealedMap = new Map();
+  let pickMap = new Map();
+  let picksByCell = new Map();
+  let prevScores = {};
+  // Transient per-player score deltas shown in the player list at settlement.
+  // Keyed by player id, each entry is { delta, until } where `until` is the
+  // timestamp after which the badge should fade out (independent of round start).
+  let activeDeltas = {};
+  let deltaTimer = null;
+  let pickerCell = null;
+  let toastTimer = null;
+
+  // host-only authoritative data
+  let boardMine = null;
+  let boardAdj = null;
+  let revealedSet = new Set();
+  let picksMap = new Map();
+  let roundStart = 0;
+  let gameStart = 0;
+  let resolveUntil = 0;
+  let tickTimer = null;
+  let revealTimer = null;
+  let botSeq = 0;
+  let botTimers = [];
+  // Generic debug switch. When ON, bots all commit to the same cell so the
+  // resolve/scoring flow can be exercised deterministically. Future debug
+  // features will read this flag too.
+  let DEBUG = false;
+  let debugCell = null;
+
+  // ------------------------------ helpers ---------------------------------
+  const playerIndex = (pid) => (state.players || []).findIndex((p) => p.id === pid);
+  const colorOf = (pid) => { const i = playerIndex(pid); return PALETTE[(i < 0 ? 0 : i) % PALETTE.length]; };
+  const nameOf = (pid) => { const p = (state.players || []).find((x) => x.id === pid); return p ? p.name : pid; };
+  const myPick = () => pickMap.get(myId);
+  const myWaiting = () => {
+    const p = state.players.find((x) => x.id === myId);
+    return !!(p && p.waiting);
+  };
+
+  function rebuildIndices() {
+    revealedMap = new Map();
+    (state.revealed || []).forEach((it) => revealedMap.set(it[0] * state.cols + it[1], { mine: !!it[2], adjacent: it[3] }));
+    pickMap = new Map();
+    picksByCell = new Map();
+    (state.picks || []).forEach((it) => {
+      const rec = { playerId: it[0], row: it[1], col: it[2], guessMine: !!it[3] };
+      pickMap.set(rec.playerId, rec);
+      const idx = rec.row * state.cols + rec.col;
+      if (!picksByCell.has(idx)) { picksByCell.set(idx, []); }
+      picksByCell.get(idx).push(rec);
+    });
+  }
+
+  function applyState(s) {
+    if (!s || typeof s !== 'object') { return; }
+    state = s;
+    rebuildIndices();
+    render();
+  }
+
+  function applyDifficulty(id) {
+    const d = DIFFS.find((x) => x.id === id) || DIFFS[0];
+    if (!d) { return; }
+    state.difficultyId = d.id;
+    state.rows = d.rows;
+    state.cols = d.cols;
+    state.mines = d.mines;
+  }
+
+  // ------------------------------- render ---------------------------------
+  function render() {
+    // Entering the settlement (resolving) phase locks all choices, so dismiss
+    // any open pick popup immediately rather than leaving it floating on the
+    // revealed board.
+    if (state.resolving) { closePicker(); }
+    renderBoard();
+    renderPlayers();
+    renderControls();
+    renderClocks();
+    renderOverlay();
+    renderConn();
+  }
+
+  function renderBoard() {
+    const boardEl = $('board');
+    // Fixed cell size: column count comes from --cols (the row count is implied
+    // by the number of cells rendered), each column is exactly --cell wide.
+    boardEl.style.setProperty('--cols', state.cols);
+    boardEl.classList.toggle('dim', state.phase !== 'playing');
+
+    const total = state.rows * state.cols;
+    // Build the cell skeleton only when the board size actually changes. Keeping
+    // the elements alive across renders means the cell under the cursor is never
+    // destroyed, so :hover highlighting stays smooth even when bots trigger
+    // frequent state broadcasts (which used to rebuild the whole board and made
+    // the hovered cell flicker).
+    if (boardEl.childElementCount !== total) {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < state.rows; r++) {
+        for (let c = 0; c < state.cols; c++) {
+          const cellEl = document.createElement('div');
+          cellEl.className = 'cell';
+          cellEl.dataset.r = String(r);
+          cellEl.dataset.c = String(c);
+          cellEl.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            if (state.phase !== 'playing' || state.resolving || myWaiting()) { return; }
+            openPicker(Number(cellEl.dataset.r), Number(cellEl.dataset.c), ev);
+          });
+          boardEl.appendChild(cellEl);
+        }
+      }
+    }
+
+    // Repaint each existing cell in place (classes + contents only).
+    const cells = boardEl.children;
+    let i = 0;
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        paintCell(cells[i], r, c);
+        i++;
+      }
+    }
+  }
+
+  function paintCell(cellEl, r, c) {
+    const idx = r * state.cols + c;
+    cellEl.className = 'cell';
+    cellEl.style.removeProperty('--pc');
+    cellEl.textContent = '';
+
+    // Pick indicators are only revealed to a client *after* they have made
+    // their own pick (or once the round is resolving) — never to a player
+    // who has not yet committed, so nobody can free-ride on others' choices.
+    const showPicks = state.phase === 'playing' && !state.resolving && !!myPick();
+    const canPick = state.phase === 'playing' && !state.resolving;
+
+    const rev = revealedMap.get(idx);
+    if (rev) {
+      cellEl.classList.add('revealed');
+      if (rev.mine) {
+        cellEl.classList.add('mine');
+        cellEl.textContent = '💣';
+      } else if (rev.adjacent > 0) {
+        cellEl.classList.add('n' + rev.adjacent);
+        cellEl.textContent = String(rev.adjacent);
+      }
+    } else {
+      const ps = picksByCell.get(idx) || [];
+      if (showPicks && ps.length) {
+        cellEl.classList.add('picked');
+        cellEl.style.setProperty('--pc', colorOf(ps[0].playerId));
+        const badges = document.createElement('div');
+        badges.className = 'badges';
+        ps.slice(0, 4).forEach((p) => {
+          const b = document.createElement('span');
+          b.className = 'badge' + (p.playerId === myId ? ' b-me' : '');
+          b.style.background = colorOf(p.playerId);
+          b.textContent = p.guessMine ? '💣' : '✓';
+          b.title = nameOf(p.playerId) + ' — ' + (p.guessMine ? (D.isMine || '') : (D.notMine || ''));
+          badges.appendChild(b);
+        });
+        if (ps.length > 4) {
+          const more = document.createElement('span');
+          more.className = 'badge';
+          more.style.background = 'rgba(255,255,255,0.85)';
+          more.textContent = '+' + (ps.length - 4);
+          badges.appendChild(more);
+        }
+        cellEl.appendChild(badges);
+        // Aggregate tally per cell: top-left green = "not mine" votes,
+        // bottom-right red = "is mine" votes.
+        let safe = 0;
+        let mine = 0;
+        ps.forEach((p) => { if (p.guessMine) { mine += 1; } else { safe += 1; } });
+        if (safe > 0) {
+          const s = document.createElement('span');
+          s.className = 'cell-stat stat-safe';
+          s.textContent = String(safe);
+          s.title = D.statSafe || '';
+          cellEl.appendChild(s);
+        }
+        if (mine > 0) {
+          const s = document.createElement('span');
+          s.className = 'cell-stat stat-mine';
+          s.textContent = String(mine);
+          s.title = D.statMine || '';
+          cellEl.appendChild(s);
+        }
+      }
+      if (canPick) {
+        cellEl.classList.add('clickable');
+      }
+    }
+  }
+
+  function renderPlayers() {
+    const wrap = $('players');
+    wrap.innerHTML = '';
+    const list = (state.players || []).slice().sort((a, b) => a.order - b.order);
+    $('pcount').textContent = String(list.filter((p) => p.connected).length);
+
+    list.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'prow' + (p.id === myId ? ' me' : '') + (p.connected ? '' : ' off');
+
+      const dot = document.createElement('span');
+      dot.className = 'pdot';
+      dot.style.background = colorOf(p.id);
+
+      const nm = document.createElement('span');
+      nm.className = 'pname';
+      nm.textContent = p.name;
+      if (p.isHost) {
+        const tag = document.createElement('span');
+        tag.className = 'ptag';
+        tag.textContent = D.hostBadge || 'Host';
+        nm.appendChild(tag);
+      }
+      if (p.id === myId) {
+        const tag = document.createElement('span');
+        tag.className = 'ptag you';
+        tag.textContent = D.youBadge || 'You';
+        nm.appendChild(tag);
+      }
+      if (p.waiting) {
+        const tag = document.createElement('span');
+        tag.className = 'ptag wait';
+        tag.textContent = D.waitNext || 'Waiting for next game';
+        nm.appendChild(tag);
+      }
+
+      // Score-change badge takes priority over the choice icon: while a player's
+      // delta is showing (3s at settlement) their choice icon is hidden, so the two
+      // never overlap. The icon returns once the badge fades out.
+      const dlt = activeDeltas[p.id];
+      const showPicks = state.phase === 'playing' && !state.resolving && !!myPick();
+      let choiceIcon = null;
+      if (showPicks && pickMap.has(p.id) && !(dlt && dlt.until > Date.now())) {
+        const pk = pickMap.get(p.id);
+        choiceIcon = document.createElement('span');
+        choiceIcon.className = 'pkick ' + (pk.guessMine ? 'mine' : 'safe');
+        choiceIcon.textContent = pk.guessMine ? '💣' : '✓';
+        choiceIcon.title = pk.guessMine ? (D.isMine || '') : (D.notMine || '');
+      }
+
+      const scWrap = document.createElement('span');
+      scWrap.className = 'pscore-wrap';
+      const sc = document.createElement('span');
+      sc.className = 'pscore';
+      sc.textContent = String(p.score);
+      scWrap.appendChild(sc);
+
+      // Score-change badge shown at settlement, to the LEFT of the score, for 3s.
+      // The pop-in animation only plays on the first render; later re-renders
+      // (e.g. the next round starting) just keep the badge in place so it does
+      // not flicker.
+      let badge = null;
+      if (dlt && dlt.until > Date.now()) {
+        const diff = dlt.delta;
+        badge = document.createElement('span');
+        badge.className = 'pdelta ' + (diff > 0 ? 'up' : 'down') + (dlt.shown ? '' : ' anim');
+        badge.dataset.pid = p.id;
+        badge.textContent = (diff > 0 ? '+' : '') + diff;
+        scWrap.appendChild(badge);
+        dlt.shown = true;
+      }
+
+      // Choice icon (when shown) sits just left of the score, on the right of the card.
+      if (choiceIcon) {
+        scWrap.appendChild(choiceIcon);
+        choiceIcon.style.right = 'calc(100% + 8px)';
+      }
+      prevScores[p.id] = p.score;
+
+      row.appendChild(dot);
+      row.appendChild(nm);
+      row.appendChild(scWrap);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderControls() {
+    const hostBox = $('hostControls');
+    const clientBox = $('clientControls');
+
+    if (IS_HOST) {
+      hostBox.style.display = '';
+      clientBox.style.display = 'none';
+      Array.from($('diffs').children).forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.id === state.difficultyId);
+        btn.disabled = state.phase === 'playing';
+      });
+      const startBtn = $('startBtn');
+      startBtn.querySelector('span').textContent =
+        state.phase === 'over' ? (D.playAgain || 'Play Again') : (D.startGame || 'Start');
+      startBtn.disabled = !hostCanStart();
+    } else {
+      hostBox.style.display = 'none';
+      clientBox.style.display = '';
+    }
+
+    let hint = '';
+    if (state.phase === 'playing') {
+      hint = myWaiting() ? (D.waitNext || 'Waiting for next game') : (myPick() ? (D.waitingOthers || '') : (D.pickHint || ''));
+    } else if (state.phase === 'lobby') {
+      if (IS_HOST) {
+        hint = hostCanStart() ? (D.lobbyReady || '') : (D.lobbyHostHint || '');
+      } else {
+        hint = D.lobbyHint || '';
+      }
+    }
+    $('hintText').textContent = hint;
+  }
+
+  function renderClocks(tick) {
+    if (tick) { lastTick = tick; }
+    const playing = state.phase === 'playing';
+    const roundRemain = playing ? clamp(lastTick.roundRemain, 0, ROUND_MS) : ROUND_MS;
+    const totalRemain = playing ? clamp(lastTick.totalRemain, 0, curTotalMs()) : curTotalMs();
+
+    const frac = roundRemain / ROUND_MS;
+    const danger = playing && roundRemain <= 5000;
+    const ring = $('roundRing');
+    ring.style.background =
+      'conic-gradient(' + (danger ? '#f44336' : '#4fc3f7') + ' ' + (frac * 360).toFixed(1) + 'deg, rgba(255,255,255,0.10) 0deg)';
+    ring.classList.toggle('danger', danger);
+    $('roundNum').textContent = playing ? String(Math.max(0, Math.ceil(roundRemain / 1000))) : '—';
+    $('roundLabel').textContent = (D.roundLabel || 'Round') + ' ' + (state.round || 0);
+    $('roundSub').textContent = playing
+      ? (myPick() ? (D.waitingOthers || '') : (D.pickHint || ''))
+      : '';
+
+    $('totalVal').textContent = fmtTime(totalRemain);
+    $('totalVal').classList.toggle('danger', playing && totalRemain <= 30000);
+  }
+
+  function renderOverlay() {
+    const ov = $('overlay');
+    ov.innerHTML = '';
+
+    if (state.phase === 'over' && lastRanking) {
+      ov.style.display = 'flex';
+      const card = document.createElement('div');
+      card.className = 'ov-card';
+
+      const t = document.createElement('div');
+      t.className = 'ov-title';
+      t.textContent = D.gameOver || 'Game Over';
+      card.appendChild(t);
+
+      const sub = document.createElement('div');
+      sub.className = 'ov-sub';
+      sub.textContent = D.ranking || '';
+      card.appendChild(sub);
+
+      const list = document.createElement('div');
+      list.className = 'rank-list';
+      lastRanking.forEach((p) => {
+        const row = document.createElement('div');
+        row.className = 'rank-row r' + Math.min(3, p.rank) + (p.id === myId ? ' me' : '');
+
+        const no = document.createElement('span');
+        no.className = 'rank-no';
+        no.textContent = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : '#' + p.rank;
+
+        const dot = document.createElement('span');
+        dot.className = 'pdot';
+        dot.style.background = colorOf(p.id);
+
+        const nm = document.createElement('span');
+        nm.className = 'rank-name';
+        nm.textContent = p.name + (p.id === myId ? ' (' + (D.youBadge || '') + ')' : '');
+
+        const sc = document.createElement('span');
+        sc.className = 'rank-score';
+        sc.textContent = String(p.score);
+
+        row.appendChild(no);
+        row.appendChild(dot);
+        row.appendChild(nm);
+        row.appendChild(sc);
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+      ov.appendChild(card);
+      return;
+    }
+
+    if (state.phase === 'lobby') {
+      ov.style.display = 'flex';
+      const card = document.createElement('div');
+      card.className = 'ov-card';
+
+      const t = document.createElement('div');
+      t.className = 'ov-title';
+      t.textContent = IS_HOST ? (D.connHostWaiting || '') : (D.lobbyHint || '');
+      card.appendChild(t);
+
+      if (IS_HOST && hostAddr) {
+        const a = document.createElement('div');
+        a.className = 'ov-addr';
+        a.textContent = fmt(D.hostAddr, { addr: hostAddr });
+        card.appendChild(a);
+      }
+      if (IS_HOST) {
+        const p = document.createElement('div');
+        p.className = 'ov-sub';
+        p.textContent = hostCanStart() ? (D.lobbyReady || '') : (D.lobbyHostHint || '');
+        card.appendChild(p);
+      }
+      ov.appendChild(card);
+      return;
+    }
+
+    ov.style.display = 'none';
+  }
+
+  function renderConn() {
+    const el = $('connStatus');
+    el.textContent = connText;
+    el.className = 'conn ' + connKind;
+  }
+
+  function setConn(text, kind) {
+    connText = text || '';
+    connKind = kind || 'info';
+    renderConn();
+  }
+
+  function flashResults(results) {
+    if (!results || !results.length) { return; }
+    results.forEach((r) => {
+      const cellEl = document.querySelector('.cell[data-r="' + r.row + '"][data-c="' + r.col + '"]');
+      if (!cellEl) { return; }
+      const cls = r.correct ? 'flash-ok' : 'flash-bad';
+      cellEl.classList.remove('flash-ok', 'flash-bad');
+      void cellEl.offsetWidth;
+      cellEl.classList.add(cls);
+      cellEl.addEventListener('animationend', () => cellEl.classList.remove(cls), { once: true });
+    });
+
+    // Only the local player's own outcome is surfaced in the result toast.
+    const mine = results.filter((r) => r.playerId === myId);
+    const parts = mine.map((r) =>
+      (D.youBadge || '') + ' ' + (r.correct ? (D.correct || '') + ' +' + r.delta : (D.wrong || '') + ' ' + r.delta)
+    );
+    const text = parts.length ? parts.join('   ') : (D.noPick || '');
+    const toast = $('toast');
+    if (!text) { toast.classList.remove('show'); return; }
+    toast.textContent = text;
+    toast.classList.add('show');
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 1900);
+
+    // Surface each player's score delta in the player list for 3 seconds. This is
+    // purely visual — the timeout never blocks the next round (round start is
+    // driven by its own resolve-pause timer, not by this animation).
+    const until = Date.now() + 3000;
+    results.forEach((r) => { activeDeltas[r.playerId] = { delta: r.delta, until: until, shown: false }; });
+    renderPlayers();
+    if (deltaTimer) { clearTimeout(deltaTimer); }
+    deltaTimer = setTimeout(() => {
+      const t = Date.now();
+      let expired = false;
+      Object.keys(activeDeltas).forEach((pid) => {
+        if (activeDeltas[pid].until <= t) {
+          delete activeDeltas[pid];
+          const el = document.querySelector('.pdelta[data-pid="' + pid + '"]');
+          if (el) { el.classList.add('gone'); }
+          expired = true;
+        }
+      });
+      // Let the fade-out transition play, then drop the badges on the next render.
+      if (expired) { setTimeout(renderPlayers, 360); }
+    }, 3000);
+  }
+
+  // ------------------------------- picker ---------------------------------
+  function openPicker(r, c, ev) {
+    pickerCell = { r, c };
+    const pk = $('picker');
+    // Show first, then measure the real width so we can center it under the
+    // cursor without a transform. Relying on translateX(-50%) here made the
+    // popIn (scale) animation override it and snap the popup sideways once.
+    pk.style.display = 'flex';
+    const w = pk.offsetWidth || 180;
+    const x = clamp(ev.clientX - w / 2, 8, window.innerWidth - w - 8);
+    const y = clamp(ev.clientY + 14, 8, window.innerHeight - 64);
+    pk.style.left = x + 'px';
+    pk.style.top = y + 'px';
+    pk.style.transform = '';
+  }
+
+  function closePicker() {
+    pickerCell = null;
+    $('picker').style.display = 'none';
+  }
+
+  function submitPick(r, c, guessMine) {
+    closePicker();
+    if (IS_HOST) {
+      hostOnPick(HOST_ID, { round: state.round, row: r, col: c, guessMine: guessMine });
+    } else {
+      toExt({ type: 'pick', round: state.round, row: r, col: c, guessMine: guessMine });
+    }
+    render();
+  }
+
+  // ============================ HOST AUTHORITY ============================
+  function hostCanStart() {
+    const others = (state.players || []).filter((p) => p.connected && !p.isHost);
+    if (state.phase === 'over') { return others.length >= 1; }
+    return state.phase === 'lobby' && others.length >= 1;
+  }
+
+  function buildBoard(rows, cols, mines) {
+    const total = rows * cols;
+    boardMine = new Array(total).fill(false);
+    boardAdj = new Array(total).fill(0);
+    let placed = 0;
+    const target = Math.min(mines, total);
+    while (placed < target) {
+      const i = Math.floor(Math.random() * total);
+      if (!boardMine[i]) { boardMine[i] = true; placed++; }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        if (boardMine[idx]) { continue; }
+        let n = 0;
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) { continue; }
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) { continue; }
+            if (boardMine[nr * cols + nc]) { n++; }
+          }
+        }
+        boardAdj[idx] = n;
+      }
+    }
+  }
+
+  function hostSyncRevealed() {
+    const out = [];
+    revealedSet.forEach((idx) => {
+      out.push([Math.floor(idx / state.cols), idx % state.cols, !!boardMine[idx], boardAdj[idx]]);
+    });
+    state.revealed = out;
+    rebuildIndices();
+  }
+
+  function hostSyncPicks() {
+    const out = [];
+    picksMap.forEach((pk, pid) => { out.push([pid, pk.row, pk.col, !!pk.guessMine]); });
+    state.picks = out;
+    rebuildIndices();
+  }
+
+  /** Reveals a cell and, when it is a safe cell with no adjacent mine, keeps
+   *  cascading through its neighbours — the same flood fill the single-player
+   *  game uses. Mines and numbered cells stop the cascade. */
+  function hostRevealFlood(idx) {
+    const total = boardMine.length;
+    const stack = [idx];
+    while (stack.length) {
+      const i = stack.pop();
+      if (i < 0 || i >= total || revealedSet.has(i)) { continue; }
+      revealedSet.add(i);
+      if (boardMine[i] || boardAdj[i] !== 0) { continue; }
+      const r = Math.floor(i / state.cols);
+      const c = i % state.cols;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) { continue; }
+          const nr = r + dr;
+          const nc = c + dc;
+          if (nr < 0 || nr >= state.rows || nc < 0 || nc >= state.cols) { continue; }
+          stack.push(nr * state.cols + nc);
+        }
+      }
+    }
+  }
+
+  /** Opens the board with one random safe cell (preferring a cell with no
+   *  adjacent mine so the opening cascades like the single-player first click). */
+  function hostFirstReveal() {
+    const total = state.rows * state.cols;
+    const safe = [];
+    const open = [];
+    for (let i = 0; i < total; i++) {
+      if (boardMine[i]) { continue; }
+      safe.push(i);
+      if (boardAdj[i] === 0) { open.push(i); }
+    }
+    const pool = open.length ? open : safe;
+    if (!pool.length) { return; }
+    hostRevealFlood(pool[Math.floor(Math.random() * pool.length)]);
+  }
+
+  function hostStart() {
+    applyDifficulty(state.difficultyId);
+    buildBoard(state.rows, state.cols, state.mines);
+    revealedSet = new Set();
+    picksMap = new Map();
+    state.round = 1;
+    state.resolving = false;
+    state.phase = 'playing';
+    state.players.forEach((p) => { p.score = 0; p.waiting = false; });
+    prevScores = {};
+    activeDeltas = {};
+    if (deltaTimer) { clearTimeout(deltaTimer); deltaTimer = null; }
+    lastRanking = null;
+    gameStart = Date.now();
+    roundStart = gameStart;
+    resolveUntil = 0;
+    lastTick = { roundRemain: ROUND_MS, totalRemain: curTotalMs() };
+    hostFirstReveal();
+    hostSyncRevealed();
+    hostSyncPicks();
+    clearRevealTimer();
+    clearBotTimers();
+    scheduleBotPicks();
+    startTicker();
+    render();
+    hostBroadcastState();
+  }
+
+  function hostOnPick(pid, msg) {
+    if (state.phase !== 'playing' || state.resolving) { return; }
+    if (msg.round !== state.round) { return; }
+    const r = msg.row;
+    const c = msg.col;
+    if (r < 0 || r >= state.rows || c < 0 || c >= state.cols) { return; }
+    const idx = r * state.cols + c;
+    if (revealedSet.has(idx)) { return; }
+    picksMap.set(pid, { row: r, col: c, guessMine: !!msg.guessMine });
+    hostSyncPicks();
+    render();
+    hostBroadcastState();
+    // Once everyone has picked, hold the picks for a short beat (if time is
+    // left) so every player can study the board before the answer is revealed.
+    if (hostAllPicked()) { scheduleResolve(); }
+  }
+
+  function scheduleResolve() {
+    if (revealTimer || state.phase !== 'playing' || state.resolving) { return; }
+    revealTimer = setTimeout(() => {
+      revealTimer = null;
+      hostResolve();
+    }, REVEAL_DELAY_MS);
+  }
+
+  function clearRevealTimer() {
+    if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+  }
+
+  function hostAllPicked() {
+    const active = (state.players || []).filter((p) => p.connected && !p.waiting);
+    if (!active.length) { return false; }
+    return active.every((p) => picksMap.has(p.id));
+  }
+
+  function hostResolve() {
+    if (state.phase !== 'playing' || state.resolving) { return; }
+    clearRevealTimer();
+    clearBotTimers();
+    // Scoring model (per round):
+    //   cellScore      = max(5, ceil(playerCount / 2))
+    //   correct guess  = +max(1, ceil(cellScore / correctCount))   (shared pot)
+    //   wrong guess    = -max(1, ceil(cellScore / wrongCount / 3)) (a third of it)
+    // playerCount is the active (connected, non-waiting) pool, and the pot is
+    // split among whoever actually picked that cell.
+    const playerCount = (state.players || []).filter((p) => p.connected && !p.waiting).length;
+    const cellScore = Math.max(5, Math.ceil(playerCount / 2));
+    // Group this round's picks by the cell they target.
+    const byCell = new Map();
+    picksMap.forEach((pk, pid) => {
+      const p = state.players.find((x) => x.id === pid);
+      if (!p) { return; }
+      const key = pk.row + ',' + pk.col;
+      if (!byCell.has(key)) { byCell.set(key, []); }
+      byCell.get(key).push({ p: p, pk: pk });
+    });
+    const results = [];
+    byCell.forEach((list, key) => {
+      const parts = key.split(',');
+      const r = Number(parts[0]);
+      const c = Number(parts[1]);
+      const idx = r * state.cols + c;
+      state.revealed[idx] = true;
+      // Flood reveal: a safe pick with no adjacent mine opens its neighbours
+      // (and theirs), exactly like the single-player game.
+      hostRevealFlood(idx);
+      const isMine = !!boardMine[idx];
+      const correctList = list.filter((x) => isMine === x.pk.guessMine);
+      const correctCount = correctList.length;
+      const wrongCount = list.length - correctCount;
+      const gain = correctCount > 0 ? Math.max(1, Math.ceil(cellScore / correctCount)) : 0;
+      const loss = wrongCount > 0 ? Math.max(1, Math.ceil(cellScore / wrongCount / 3)) : 0;
+      correctList.forEach(({ p, pk }) => {
+        const delta = gain;
+        p.score += delta;
+        results.push({ playerId: p.id, correct: true, delta: delta, row: r, col: c, mine: isMine });
+      });
+      list.forEach(({ p, pk }) => {
+        if (isMine === pk.guessMine) { return; }
+        const delta = -loss;
+        p.score += delta;
+        results.push({ playerId: p.id, correct: false, delta: delta, row: r, col: c, mine: isMine });
+      });
+    });
+    state.resolving = true;
+    resolveUntil = Date.now() + RESOLVE_PAUSE_MS;
+    hostSyncRevealed();
+    hostSyncPicks();
+    render();
+    // State first, then the result, so clients rebuild the board (with the
+    // freshly revealed cells) *before* the flash animation is triggered.
+    hostBroadcastState();
+    hostBroadcast({ type: 'roundResult', results: results });
+    flashResults(results);
+  }
+
+  function finishResolve() {
+    const now = Date.now();
+    const totalCells = state.rows * state.cols;
+    const totalRemain = Math.max(0, curTotalMs() - (now - gameStart));
+    if (revealedSet.size >= totalCells || totalRemain <= 0) {
+      hostGameOver();
+      return;
+    }
+    state.resolving = false;
+    state.round += 1;
+    picksMap = new Map();
+    hostSyncPicks();
+    roundStart = Date.now();
+    scheduleBotPicks();
+    render();
+    hostBroadcastState();
+  }
+
+  function hostGameOver() {
+    stopTicker();
+    clearRevealTimer();
+    clearBotTimers();
+    state.phase = 'over';
+    state.resolving = false;
+    const ranked = state.players
+      .slice()
+      .sort((a, b) => (b.score - a.score) || (a.order - b.order))
+      .map((p, i) => ({
+        id: p.id, name: p.name, score: p.score, connected: p.connected, isHost: p.isHost, order: p.order, rank: i + 1
+      }));
+    lastRanking = ranked;
+    hostBroadcast({ type: 'gameOver', ranking: ranked });
+    render();
+    hostBroadcastState();
+  }
+
+  function startTicker() {
+    stopTicker();
+    tickTimer = setInterval(() => {
+      if (!IS_HOST || state.phase !== 'playing') { return; }
+      const now = Date.now();
+      if (state.resolving) {
+        renderClocks({ roundRemain: 0, totalRemain: Math.max(0, curTotalMs() - (now - gameStart)) });
+        if (now >= resolveUntil) { finishResolve(); }
+        return;
+      }
+      const roundRemain = Math.max(0, ROUND_MS - (now - roundStart));
+      const totalRemain = Math.max(0, curTotalMs() - (now - gameStart));
+      lastTick = { roundRemain: roundRemain, totalRemain: totalRemain };
+      renderClocks(lastTick);
+      hostBroadcast({ type: 'tick', round: state.round, roundRemain: roundRemain, totalRemain: totalRemain });
+      if (roundRemain <= 0 || totalRemain <= 0) { hostResolve(); }
+    }, 150);
+  }
+
+  function stopTicker() {
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  }
+
+  function hostBroadcast(msg) { toExt(msg); }
+  function hostSendTo(id, msg) { toExt(Object.assign({}, msg, { to: id })); }
+  function hostBroadcastState() { hostBroadcast({ type: 'state', state: state }); }
+
+  function hostEnsurePlayer(id, name) {
+    let p = (state.players || []).find((x) => x.id === id);
+    const clean = (name && String(name).trim()) || '';
+    if (!p) {
+      // A player joining while a match is already running sits out this game
+      // and is flagged as waiting for the next opening.
+      const waiting = state.phase !== 'lobby';
+      p = { id: id, name: clean || id, score: 0, connected: true, isHost: false, order: state.players.length, waiting };
+      state.players.push(p);
+    } else {
+      if (clean) { p.name = clean; }
+      p.connected = true;
+    }
+    return p;
+  }
+
+  // ------------------------- bots (host-only test players) ----------------
+  // A bot is a purely local player owned by the host webview: no socket and no
+  // extension involvement. It exists so a single person can start a match and
+  // exercise the whole flow. Bots play completely at random — a random
+  // unrevealed cell, judged "mine" or "safe" on a coin flip — after a short
+  // random delay so their pick shows up in the round like a human's would.
+  function clearBotTimers() {
+    botTimers.forEach((t) => clearTimeout(t));
+    botTimers = [];
+  }
+
+  function hostFreeCells() {
+    const total = state.rows * state.cols;
+    const free = [];
+    for (let i = 0; i < total; i++) { if (!revealedSet.has(i)) { free.push(i); } }
+    return free;
+  }
+
+  function scheduleBotPick(bot, stagger) {
+    const delay = 700 + Math.random() * 4200 + (stagger || 0);
+    const timer = setTimeout(() => {
+      if (!IS_HOST || state.phase !== 'playing' || state.resolving) { return; }
+      if (!(state.players || []).some((p) => p.id === bot.id && p.connected)) { return; }
+      if (picksMap.has(bot.id)) { return; }
+      let idx;
+      if (DEBUG && debugCell != null) {
+        // Debug mode: every bot commits to the same randomly chosen cell.
+        idx = debugCell;
+      } else {
+        const free = hostFreeCells();
+        if (!free.length) { return; }
+        idx = free[Math.floor(Math.random() * free.length)];
+      }
+      hostOnPick(bot.id, {
+        round: state.round,
+        row: Math.floor(idx / state.cols),
+        col: idx % state.cols,
+        guessMine: Math.random() < 0.5
+      });
+    }, Math.max(0, Math.round(delay)));
+    botTimers.push(timer);
+  }
+
+  /** Queues one random pick per bot for the round that is about to start. */
+  function scheduleBotPicks() {
+    debugCell = null;
+    if (DEBUG) {
+      // Pick a single shared cell for this round so all bots land on it.
+      const free = hostFreeCells();
+      if (free.length) { debugCell = free[Math.floor(Math.random() * free.length)]; }
+    }
+    let n = 0;
+    (state.players || []).forEach((p) => {
+      if (p.isBot && p.connected && !p.waiting) { scheduleBotPick(p, n * 350); n += 1; }
+    });
+  }
+
+  /** Adds a random bot to the room (host only). A bot counts as another
+   *  player, so the host can start a match alone to test the flow. */
+  function hostAddBot() {
+    if (!IS_HOST) { return; }
+    botSeq += 1;
+    const bot = {
+      id: 'bot' + botSeq,
+      name: fmt(D.botName || 'Bot {n}', { n: botSeq }),
+      score: 0, connected: true, isHost: false, isBot: true,
+      order: (state.players || []).length,
+      // A bot added mid-match also waits for the next opening.
+      waiting: state.phase !== 'lobby'
+    };
+    state.players.push(bot);
+    render();
+    hostBroadcastState();
+    if (state.phase === 'playing' && !state.resolving && !bot.waiting) { scheduleBotPick(bot, 0); }
+  }
+
+  function hostHandle(msg) {
+    switch (msg.type) {
+      case 'hostReady':
+        hostAddr = (msg.host || '') + ':' + (msg.port || '');
+        setConn(fmt(D.hostAddr, { addr: hostAddr }), 'ok');
+        render();
+        break;
+      case 'hostError':
+        setConn((D.errHost || '') + ': ' + (msg.message || ''), 'err');
+        break;
+      case 'peerJoined':
+        render();
+        break;
+      case 'peerLeft': {
+        const p = (state.players || []).find((x) => x.id === msg.id);
+        if (p) { p.connected = false; }
+        if (picksMap.has(msg.id)) { picksMap.delete(msg.id); hostSyncPicks(); }
+        render();
+        hostBroadcastState();
+        if (state.phase === 'playing' && !state.resolving && hostAllPicked()) { scheduleResolve(); }
+        break;
+      }
+      case 'join':
+        if (msg.from) {
+          hostEnsurePlayer(msg.from, msg.name);
+          hostSendTo(msg.from, { type: 'welcome', youId: msg.from, state: state });
+          render();
+          hostBroadcastState();
+        }
+        break;
+      case 'pick':
+        if (msg.from) { hostOnPick(msg.from, msg); }
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ============================ CLIENT SIDE ===============================
+  function addrLabel(msg) {
+    const h = msg && msg.host ? msg.host : (BOOTSTRAP.host || '');
+    const p = msg && msg.port ? msg.port : (BOOTSTRAP.port || '');
+    return h + ':' + p;
+  }
+
+  function sendJoin() {
+    const inp = $('nickInput');
+    const v = ((inp && inp.value) || '').trim();
+    toExt({ type: 'join', name: v || (LANG === 'cn' ? '玩家' : 'Player') });
+  }
+
+  function clientHandle(msg) {
+    switch (msg.type) {
+      case 'clientReady':
+        setConn(D.connConnected || '', 'ok');
+        sendJoin();
+        break;
+      case 'clientTimeout':
+        setConn(fmt(D.errTimeout, { addr: addrLabel(msg) }), 'err');
+        break;
+      case 'clientRefused':
+        setConn(fmt(D.errRefused, { addr: addrLabel(msg) }), 'err');
+        break;
+      case 'clientError':
+        setConn((D.errClient || '') + ': ' + (msg.message || ''), 'err');
+        break;
+      case 'disconnected':
+        setConn(D.connDisconnected || '', 'err');
+        break;
+      case 'welcome':
+        if (msg.youId) { myId = msg.youId; }
+        setConn(D.connYouJoined || '', 'ok');
+        if (msg.state) { applyState(msg.state); } else { render(); }
+        break;
+      case 'state':
+        applyState(msg.state);
+        break;
+      case 'tick':
+        renderClocks({ roundRemain: msg.roundRemain, totalRemain: msg.totalRemain });
+        break;
+      case 'roundResult':
+        flashResults(msg.results || []);
+        break;
+      case 'gameOver':
+        lastRanking = msg.ranking || [];
+        state.phase = 'over';
+        state.resolving = false;
+        render();
+        break;
+      default:
+        break;
+    }
+  }
+
+  // ================================ INIT ==================================
+  function buildDifficulties() {
+    const wrap = $('diffs');
+    wrap.innerHTML = '';
+    DIFFS.forEach((d) => {
+      const b = document.createElement('button');
+      b.className = 'seg';
+      b.dataset.id = d.id;
+      b.textContent = LANG === 'cn' ? d.labelCn : d.label;
+      b.addEventListener('click', () => {
+        if (state.phase === 'playing') { return; }
+        applyDifficulty(d.id);
+        render();
+        if (IS_HOST) { hostBroadcastState(); }
+      });
+      wrap.appendChild(b);
+    });
+  }
+
+  function initUI() {
+    document.title = D.title || 'Minesweeper · Online';
+    $('title').textContent = D.title || 'Minesweeper · Online';
+    $('playersTitle').textContent = D.players || 'Players';
+    $('sizeLabel').textContent = D.boardSize || '';
+    $('addBotLabel').textContent = D.addBot || 'Add Bot';
+    $('dbgLabel').textContent = D.debugMode || 'Debug';
+    $('nickLabel').textContent = D.nickname || '';
+    $('totalLabel').textContent = D.totalLabel || '';
+    $('pkMine').textContent = D.isMine || '';
+    $('pkSafe').textContent = D.notMine || '';
+    $('nickInput').placeholder = D.nicknamePlaceholder || '';
+    buildDifficulties();
+    renderConn();
+  }
+
+  $('startBtn').addEventListener('click', () => { if (IS_HOST && hostCanStart()) { hostStart(); } });
+  $('addBotBtn').addEventListener('click', () => { hostAddBot(); });
+  $('dbgChk').addEventListener('change', (e) => {
+    DEBUG = !!e.target.checked;
+    if (!DEBUG) { debugCell = null; }
+    render();
+  });
+  $('nickInput').addEventListener('change', () => { if (!IS_HOST) { sendJoin(); } });
+  $('picker').addEventListener('click', (ev) => {
+    const target = ev.target;
+    const btn = target && target.closest ? target.closest('.pk') : null;
+    if (!btn || !pickerCell) { return; }
+    submitPick(pickerCell.r, pickerCell.c, btn.dataset.g === '1');
+  });
+  // Clicking anywhere outside the popup dismisses it. Clickable cells still
+  // reposition the popup (their own handler calls stopPropagation, so this
+  // listener never sees those clicks); revealed/non-pickable cells and the
+  // rest of the UI count as "outside" and close it.
+  document.addEventListener('click', (ev) => {
+    const pk = $('picker');
+    if (!pk || pk.style.display !== 'flex') { return; }
+    if (pk.contains(ev.target)) { return; }
+    closePicker();
+  });
+  window.addEventListener('message', (ev) => {
+    const msg = ev.data;
+    if (!msg || typeof msg !== 'object') { return; }
+    if (IS_HOST) { hostHandle(msg); } else { clientHandle(msg); }
+  });
+
+  if (IS_HOST) {
+    state.players = [{ id: HOST_ID, name: D.hostBadge || 'Host', score: 0, connected: true, isHost: true, order: 0 }];
+    applyDifficulty(state.difficultyId);
+  }
+
+  initUI();
+  rebuildIndices();
+  render();
+})();
+</script>
+</body>
+</html>

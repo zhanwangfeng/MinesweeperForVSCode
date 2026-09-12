@@ -3,6 +3,7 @@ import { MinesweeperProvider } from './MinesweeperProvider';
 import { MinesweeperPanel } from './MinesweeperPanel';
 import { DIFFICULTIES, Difficulty } from './game';
 import { Lang } from './i18n';
+import { registerMulti, disposeMulti } from './multi/multiExtension';
 
 function resolveLang(): Lang {
   const cfg = vscode.workspace.getConfiguration('minesweeper');
@@ -90,6 +91,13 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
+
+  // Online (LAN) multiplayer: isolated module under src/multi/. It registers the
+  // "Create Room (Online)" / "Join Room (Online)" commands referenced by the
+  // TreeView items. Single-player behaviour is untouched.
+  registerMulti(context);
 }
 
-export function deactivate() {}
+export function deactivate() {
+  disposeMulti();
+}

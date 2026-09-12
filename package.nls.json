@@ -7,5 +7,7 @@
   "command.setLanguage.title": "Switch Language",
   "command.selectDifficulty.title": "Select",
   "command.toggleProbability.title": "Toggle Mine Odds",
+  "command.multiCreate.title": "Create Room (Online)",
+  "command.multiJoin.title": "Join Room (Online)",
   "config.language.desc": "UI language for the Minesweeper extension (auto uses VSCode locale)."
 }

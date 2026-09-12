@@ -2,7 +2,7 @@
   "name": "minesweeper-for-vscode",
   "displayName": "Minesweeper for VSCode",
   "description": "A classic Minesweeper game inside VSCode with difficulty TreeView and i18n (en/cn).",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "zhanwangfeng",
   "icon": "resources/icon.png",
   "engines": {
@@ -66,6 +66,18 @@
       {
         "command": "minesweeper.toggleProbability",
         "title": "%command.toggleProbability.title%",
+        "category": "Minesweeper"
+      },
+      {
+        "command": "minesweeper.multiCreate",
+        "title": "%command.multiCreate.title%",
+        "icon": "$(add)",
+        "category": "Minesweeper"
+      },
+      {
+        "command": "minesweeper.multiJoin",
+        "title": "%command.multiJoin.title%",
+        "icon": "$(link-external)",
         "category": "Minesweeper"
       },
       {
@@ -139,11 +151,23 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "package": "npm run compile && vsce package"
+  },
+  "files": [
+    "dist",
+    "src/multi/webview/multi.html",
+    "resources",
+    "package.nls.zh-cn.json",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.12",
     "@vscode/vsce": "^3.9.2",
     "typescript": "^5.3.0"
   }

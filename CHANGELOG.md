@@ -5,6 +5,38 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-11
+
+### Added
+- LAN online multiplayer with a host-authoritative, turn-based mode: an unlimited number of players share one board and compete on a score leaderboard.
+- Two new TreeView entries: **Create Room (Online)** (starts a room, shows the local `IP:PORT` on port `18766`) and **Join Room (Online)** (joins by entering the host's `IP:PORT`). Two matching commands `minesweeper.multiCreate` / `minesweeper.multiJoin` are registered.
+- In-room lobby showing every player's nickname, address and connection status; the host picks the board size (小 / 中 / 大, i.e. Small / Medium / Large; 9×9 / 16×16 / 20×20) inside the webview and starts the match once at least one player has joined.
+- Round-based gameplay: each round every player picks one unrevealed cell and marks it as **Mine** or **Not a mine** within a 20-second limit. When everyone has picked or the timer expires, all picked cells are revealed together: a correct guess scores `+1`, a wrong guess `-1`, and players who did not pick keep their score.
+- Live visualization of everyone's picks (color-coded per player) plus a round result overlay (green/red glow) and score-change popups.
+- Whole-match countdown that scales with the board size (小 / Small 9×9 = 3 min, 中 / Medium 16×16 = 6 min, 大 / Large 20×20 = 9 min); the game ends on timeout or when every cell has been revealed, then a leaderboard ranked by score is shown with gold/silver/bronze highlighting.
+- Disconnect handling: a player who leaves mid-round has their pick dropped and the lobby updated, while their score is preserved and the match continues.
+- Host-only **Add Bot** button for solo testing: adds a local random bot to the room. Bots count as regular players (so the host can start a match alone), pick a random unrevealed cell with a random guess after a short random delay each round, and need no network connection.
+- The board now opens with one random safe cell already revealed (preferring a cell with no adjacent mines so the opening cascades), mirroring the single-player first click.
+- Revealing a safe cell with no adjacent mine now cascades through its neighbours (flood fill) at round resolution, exactly like the single-player game, instead of only opening the single picked cell.
+- The round result toast at the bottom of the window now reports **only the local player's own outcome** (`Correct +1` / `Wrong -1` / `No pick`) instead of listing every player's result.
+- A player only sees the other players' picks **after making their own pick** for the round — picks are hidden until you commit, so nobody can free-ride on others' choices.
+- Each player's current-round choice is shown as an icon (💣 mine / ✓ not a mine) in the player list, and every picked cell shows a live tally: a **green number (top-left)** counts players who guessed *not a mine*, a **red number (bottom-right)** counts players who guessed *mine*.
+- When everyone has picked before the round timer expires, the answers are now held for about 3 seconds (configurable via `REVEAL_DELAY_MS`) so players can study the board before the reveal, instead of resolving instantly.
+- Fixed a picker popup glitch where it snapped sideways once: the popup is now centered under the cursor by measuring its width (no `translateX` transform fighting the open animation).
+- Dark glassmorphism UI with a 20-second ring countdown, total-time countdown, beveled board cells and restrained animations; all styles are inlined and follow the VSCode theme variables.
+- Chinese localization for the online UI and the two new command titles (创建房间(联机) / 加入房间(联机)).
+
+### Changed
+- Online difficulty labels are now **小 / 中 / 大** (Small / Medium / Large) instead of Easy / Medium / Hard.
+- The large board is now **20×20** (was 16×30); mine density stays at roughly a third of all cells.
+- Match length now scales with the board size — **小 = 3 min, 中 = 6 min, 大 = 9 min** (a 1:2:3 ratio) — instead of a flat 3 minutes for every board.
+- Players (including bots) who join **after a match has started** are tagged *Waiting for next game* and only become active in the following match; they cannot pick during the current one and are excluded from the round's "everyone picked" check.
+- Clicking outside the pick popup now dismisses it.
+- New scoring model that scales with player count: each cell is worth `max(5, ceil(playerCount / 2))`; correct guesses share `+max(1, ceil(pot / correctCount))` and wrong guesses share `−max(1, ceil(pot / wrongCount / 3))`, instead of a flat ±1.
+- Score-delta animation in the player list at settlement: each player's score shows a floating `+N` (red, bonus) / `−N` (green, penalty) badge to the right of their score, auto-hidden after 3 seconds without delaying the next round.
+- The score-change badge takes priority over the per-player choice icon: the choice icon is hidden while a player's delta is showing, and reappears only after the badge fades, so the two never overlap.
+- Added a generic "Debug mode" toggle in the host controls. When enabled, every bot commits to the same randomly chosen cell (so the resolve/scoring flow can be exercised deterministically). The flag is a shared hook for future debug features.
+
 ## [1.1.0] - 2026-09-10
 
 ### Added

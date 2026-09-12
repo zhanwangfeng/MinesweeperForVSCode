@@ -7,5 +7,7 @@
   "command.setLanguage.title": "切换语言",
   "command.selectDifficulty.title": "选择",
   "command.toggleProbability.title": "开关雷概率提示",
+  "command.multiCreate.title": "创建房间(联机)",
+  "command.multiJoin.title": "加入房间(联机)",
   "config.language.desc": "扫雷插件的界面语言（auto 使用 VSCode 当前语言）。"
 }
