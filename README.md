@@ -98,6 +98,15 @@ npm run compile        # compile to dist/
 # Press F5 in VSCode to launch the Extension Development Host
 ```
 
+Package a `.vsix` (for a local install or a manual upload) or publish to the Marketplace:
+
+```bash
+npm run package        # -> minesweeper-for-vscode-<version>.vsix
+npm run publish        # publish the current version to the VS Marketplace
+```
+
+Both commands trigger the `vscode:prepublish` script, which runs `tsc` — so there is no need to compile beforehand.
+
 ## Configuration
 
 | Setting | Default | Description |

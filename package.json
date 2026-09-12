@@ -2,9 +2,13 @@
   "name": "minesweeper-for-vscode",
   "displayName": "Minesweeper for VSCode",
   "description": "A classic Minesweeper game inside VSCode with difficulty TreeView and i18n (en/cn).",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "publisher": "zhanwangfeng",
   "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhanwangfeng/MinesweeperForVSCode.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -152,8 +156,8 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "npm run compile && vsce package",
-    "publish": "npm install && npm run compile && vsce publish"
+    "package": "vsce package",
+    "publish": "npm install && vsce publish"
   },
   "files": [
     "dist",
@@ -162,6 +166,7 @@
     "package.nls.zh-cn.json",
     "README.md",
     "CHANGELOG.md",
+    "LICENSE",
     "node_modules/ws"
   ],
   "dependencies": {

@@ -5,6 +5,15 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-09-12
+
+### Fixed
+- The root `LICENSE` file is now bundled into the VSIX. Since `files` acts as a whitelist, `vsce` only force-includes `package.json` and the README, so `LICENSE` was previously left out of the package and `vsce` warned "LICENSE, LICENSE.md, or LICENSE.txt not found".
+
+### Changed
+- `npm run package` now compiles the TypeScript sources only **once**: `vsce` already runs the `vscode:prepublish` script (which runs `tsc`), so the redundant explicit `npm run compile` was removed from the `package`/`publish` npm scripts.
+- `vsce package` / `vsce publish` now run without interactive prompts: added the `repository` field to `package.json` (silences the "A 'repository' field is missing" prompt) and listed `LICENSE` in `files`.
+
 ## [1.2.2] - 2026-09-12
 
 ### Changed
