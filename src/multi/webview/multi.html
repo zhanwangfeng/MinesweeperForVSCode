@@ -524,6 +524,9 @@
     const p = state.players.find((x) => x.id === myId);
     return !!(p && p.waiting);
   };
+  // Nicknames can only be changed while waiting in the lobby; once a match is
+  // running (or the final result is showing) the rename entry points are hidden.
+  const canRename = () => state.phase === 'lobby';
 
   function rebuildIndices() {
     revealedMap = new Map();
@@ -684,8 +687,14 @@
 
   function renderPlayers() {
     const wrap = $('players');
+    // Renaming is lobby-only. Drop any pending edit before rebuilding the list so
+    // a stale inline editor cannot push a name change once the game has started.
+    if (!canRename()) { editingName = false; }
     wrap.innerHTML = '';
-    const list = (state.players || []).slice().sort((a, b) => a.order - b.order);
+    // Sort order: the local player always comes first; if the local player is not
+    // the host, the host comes second; everyone else keeps the host's join order.
+    const rank = (p) => (p.id === myId ? 0 : (p.isHost ? 1 : 2));
+    const list = (state.players || []).slice().sort((a, b) => (rank(a) - rank(b)) || (a.order - b.order));
     $('pcount').textContent = String(list.filter((p) => p.connected).length);
 
     list.forEach((p) => {
@@ -779,7 +788,7 @@
         setTimeout(() => { try { inp.focus(); inp.selectionStart = inp.selectionEnd = inp.value.length; } catch (e) { /* ignore */ } }, 0);
       } else {
         row.appendChild(nm);
-        if (p.id === myId) {
+        if (p.id === myId && canRename()) {
           const edit = document.createElement('button');
           edit.className = 'name-edit-btn';
           edit.type = 'button';
@@ -811,7 +820,9 @@
       startBtn.disabled = !hostCanStart();
     } else {
       hostBox.style.display = 'none';
-      clientBox.style.display = '';
+      // The nickname box is the client's other rename entry point, so it follows
+      // the same lobby-only rule.
+      clientBox.style.display = canRename() ? '' : 'none';
     }
 
     let hint = '';

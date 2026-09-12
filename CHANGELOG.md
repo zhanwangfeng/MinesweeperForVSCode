@@ -5,6 +5,12 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-09-12
+
+### Changed
+- The multiplayer player list is now sorted for readability: **you are always shown first**; if you are not the host, the **host is shown second**, and everyone else keeps their join order.
+- Nicknames can now only be changed **in the lobby**. Once a match has started the ✎ rename button next to your name in the player list (and the client nickname box in the sidebar) is hidden, and any unfinished rename is discarded — so nobody can change their name mid-match.
+
 ## [1.2.1] - 2026-09-12
 
 ### Fixed

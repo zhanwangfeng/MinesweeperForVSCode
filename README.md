@@ -38,7 +38,7 @@ Two extra TreeView entries appear below the difficulty items:
 ### How a match works
 
 1. The host opens the room webview and shares the `IP:PORT` shown in the header; players join by entering it there.
-2. Everyone (including the host) appears in the lobby with their nickname, address and connection status. There is **no player limit**.
+2. Everyone (including the host) appears in the lobby with their nickname, address and connection status. There is **no player limit**. The list is ordered for you: **you are always first**; if you are not the host, the **host is shown second**; everyone else keeps the join order.
 3. The **host** picks the board size inside the webview — **小 / 中 / 大** (Small / Medium / Large), i.e. **9×9 / 16×16 / 20×20** — and clicks **Start Game** once at least one other player has joined.
 4. The board opens with **one random safe cell already revealed** — if it has no adjacent mines the reveal cascades through its neighbours, exactly like the first click of the single-player game.
 5. Each round every player **picks one unrevealed cell** and marks it as **Mine** or **Not a mine**. A round lasts **20 seconds**. You only see the other players' picks **after you have made your own pick** — so nobody can free-ride on others' choices.
@@ -48,6 +48,10 @@ Two extra TreeView entries appear below the difficulty items:
 9. The whole match lasts **3 / 6 / 9 minutes** for **小 / 中 / 大** (it scales with the board size). It ends when the timer reaches `0:00` or when every cell has been revealed, then a leaderboard is shown ranked by score (gold / silver / bronze for the top three).
 10. If a player disconnects mid-round, their pick for that round is dropped and the lobby is updated, but their score is kept and the match continues.
 11. Players (including bots) who join **after a match has started** are tagged **Waiting for next game** in the player list — they cannot pick during the current match and only become active when the next match begins.
+
+### Nicknames
+
+Every player (the host included) can set a display name while in the lobby by clicking the **✎** button next to their name in the player list; clients also have a nickname box in the sidebar. For clients the change is sent to the host and broadcast to all, while the host updates its own name directly. Names are capped at **16 characters**. Renaming is **lobby-only**: once a match starts the rename entry points disappear and any unfinished edit is discarded, so you cannot change your name mid-match.
 
 ### Test bots
 
