@@ -38,7 +38,7 @@ Two extra TreeView entries appear below the difficulty items:
 ### How a match works
 
 1. The host opens the room webview and shares the `IP:PORT` shown in the header; players join by entering it there.
-2. Everyone (including the host) appears in the lobby with their nickname, address and connection status. There is **no player limit**. The list is ordered for you: **you are always first**; if you are not the host, the **host is shown second**; everyone else keeps the join order.
+2. Everyone (including the host) appears in the lobby with their nickname, address and connection status. There is **no player limit**. The list is ordered for you: **you are always first**; if you are not the host, the **host is shown second**; then the other real players; **bots are shown last**. Within each group the join order is kept.
 3. The **host** picks the board size inside the webview — **小 / 中 / 大** (Small / Medium / Large), i.e. **9×9 / 16×16 / 20×20** — and clicks **Start Game** once at least one other player has joined.
 4. The board opens with **one random safe cell already revealed** — if it has no adjacent mines the reveal cascades through its neighbours, exactly like the first click of the single-player game.
 5. Each round every player **picks one unrevealed cell** and marks it as **Mine** or **Not a mine**. A round lasts **20 seconds**. You only see the other players' picks **after you have made your own pick** — so nobody can free-ride on others' choices.

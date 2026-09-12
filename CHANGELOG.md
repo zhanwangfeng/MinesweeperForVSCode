@@ -5,6 +5,14 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.4] - 2026-09-12
+
+### Removed
+- The **Debug mode** checkbox that was shown in the room sidebar (host controls). It is a development-only switch: the underlying `DEBUG` flag is kept for local debugging, but it is no longer exposed anywhere in the user interface.
+
+### Changed
+- Multiplayer player list now also groups by player kind: after **you** and the **host**, real players are listed before **bots**, and bots are shown last. The join order is still kept within each group.
+
 ## [1.2.3] - 2026-09-12
 
 ### Fixed

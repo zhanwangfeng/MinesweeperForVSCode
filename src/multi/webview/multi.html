@@ -250,8 +250,6 @@
   @keyframes pdeltaIn { from { opacity: 0; transform: translateY(-3px) scale(0.7); } to { opacity: 1; transform: none; } }
 
   .divider { height: 1px; background: var(--stroke); }
-  label.dbg { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
-  label.dbg input { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
   .ctl-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
   .segmented { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); }
   .seg {
@@ -394,7 +392,6 @@
         <div class="segmented" id="diffs"></div>
         <button class="primary" id="startBtn"><span>Start Game</span></button>
         <button class="ghost" id="addBotBtn">🤖 <span id="addBotLabel">Add Bot</span></button>
-        <label class="dbg" id="dbgRow"><input type="checkbox" id="dbgChk" /> <span id="dbgLabel">Debug</span></label>
       </div>
       <div id="clientControls" style="display:none">
         <div class="ctl-label" id="nickLabel">Nickname</div>
@@ -509,9 +506,10 @@
   let revealTimer = null;
   let botSeq = 0;
   let botTimers = [];
-  // Generic debug switch. When ON, bots all commit to the same cell so the
-  // resolve/scoring flow can be exercised deterministically. Future debug
-  // features will read this flag too.
+  // Dev-only debug switch, intentionally NOT exposed in the UI: when ON, all
+  // bots commit to the same cell so the resolve/scoring flow can be exercised
+  // deterministically. Flip it to `true` locally while debugging; keep it
+  // `false` in shipped builds.
   let DEBUG = false;
   let debugCell = null;
 
@@ -692,8 +690,9 @@
     if (!canRename()) { editingName = false; }
     wrap.innerHTML = '';
     // Sort order: the local player always comes first; if the local player is not
-    // the host, the host comes second; everyone else keeps the host's join order.
-    const rank = (p) => (p.id === myId ? 0 : (p.isHost ? 1 : 2));
+    // the host, the host comes second; then real players; bots are shown last.
+    // Within each group the host's join order is kept.
+    const rank = (p) => (p.id === myId ? 0 : p.isHost ? 1 : p.isBot ? 3 : 2);
     const list = (state.players || []).slice().sort((a, b) => (rank(a) - rank(b)) || (a.order - b.order));
     $('pcount').textContent = String(list.filter((p) => p.connected).length);
 
@@ -1552,7 +1551,6 @@
     $('playersTitle').textContent = D.players || 'Players';
     $('sizeLabel').textContent = D.boardSize || '';
     $('addBotLabel').textContent = D.addBot || 'Add Bot';
-    $('dbgLabel').textContent = D.debugMode || 'Debug';
     $('nickLabel').textContent = D.nickname || '';
     $('totalLabel').textContent = D.totalLabel || '';
     $('pkMine').textContent = D.isMine || '';
@@ -1564,11 +1562,6 @@
 
   $('startBtn').addEventListener('click', () => { if (IS_HOST && hostCanStart()) { hostStart(); } });
   $('addBotBtn').addEventListener('click', () => { hostAddBot(); });
-  $('dbgChk').addEventListener('change', (e) => {
-    DEBUG = !!e.target.checked;
-    if (!DEBUG) { debugCell = null; }
-    render();
-  });
   $('nickInput').addEventListener('change', () => { if (!IS_HOST) { sendJoin(); } });
   $('picker').addEventListener('click', (ev) => {
     const target = ev.target;

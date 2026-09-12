@@ -24,7 +24,6 @@ export interface MultiDict {
   playAgain: string;
   addBot: string;
   botName: string;
-  debugMode: string;
   roundLabel: string;
   totalLabel: string;
   pickHint: string;
@@ -74,7 +73,6 @@ const en: MultiDict = {
   playAgain: 'Play Again',
   addBot: 'Add Bot',
   botName: 'Bot {n}',
-  debugMode: 'Debug mode',
   roundLabel: 'Round',
   totalLabel: 'Total',
   pickHint: 'Click a hidden cell, then judge whether it is a mine.',
@@ -124,7 +122,6 @@ const cn: MultiDict = {
   playAgain: '再来一局',
   addBot: '添加机器人',
   botName: '机器人 {n}',
-  debugMode: '调试模式',
   roundLabel: '回合',
   totalLabel: '总时间',
   pickHint: '点击一个未揭晓的格子，判断它是否是雷。',
