@@ -433,6 +433,9 @@
   const ROLE = BOOTSTRAP.role || 'client';
   const IS_HOST = ROLE === 'host';
   const HOST_ID = BOOTSTRAP.hostId || 'HOST';
+  // Last-used nickname persisted by the extension (mirrors globalState) and
+  // used as the default for both the host player card and the client input.
+  const SAVED_NICK = (BOOTSTRAP.nickname || '').slice(0, 16);
 
   // Timing values come from the extension (src/multi/multiConfig.ts) so there is
   // exactly one source of truth; the fallbacks only guard against a stale build.
@@ -1326,6 +1329,8 @@
       } else {
         toExt({ type: 'rename', name: newName });
       }
+      // Persist the chosen nickname so it survives a panel reload.
+      toExt({ type: 'setNickname', name: newName });
     }
     render();
   }
@@ -1556,13 +1561,21 @@
     $('pkMine').textContent = D.isMine || '';
     $('pkSafe').textContent = D.notMine || '';
     $('nickInput').placeholder = D.nicknamePlaceholder || '';
+    // Pre-fill with the persisted nickname so it is sent on (re)join.
+    $('nickInput').value = SAVED_NICK;
     buildDifficulties();
     renderConn();
   }
 
   $('startBtn').addEventListener('click', () => { if (IS_HOST && hostCanStart()) { hostStart(); } });
   $('addBotBtn').addEventListener('click', () => { hostAddBot(); });
-  $('nickInput').addEventListener('change', () => { if (!IS_HOST) { sendJoin(); } });
+  $('nickInput').addEventListener('change', () => {
+    if (!IS_HOST) {
+      const v = (($('nickInput').value) || '').trim();
+      if (v) { toExt({ type: 'setNickname', name: v }); }
+      sendJoin();
+    }
+  });
   $('picker').addEventListener('click', (ev) => {
     const target = ev.target;
     const btn = target && target.closest ? target.closest('.pk') : null;
@@ -1586,7 +1599,7 @@
   });
 
   if (IS_HOST) {
-    state.players = [{ id: HOST_ID, name: D.hostBadge || 'Host', score: 0, connected: true, isHost: true, order: 0 }];
+    state.players = [{ id: HOST_ID, name: SAVED_NICK || (D.hostBadge || 'Host'), score: 0, connected: true, isHost: true, order: 0 }];
     applyDifficulty(state.difficultyId);
   }
 

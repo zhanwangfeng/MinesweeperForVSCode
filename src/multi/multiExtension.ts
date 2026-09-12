@@ -165,6 +165,9 @@ function openMultiGame(context: vscode.ExtensionContext, role: MultiRole, connec
     lang,
     dict,
     difficulties: MULTI_DIFFICULTIES,
+    // The last-used nickname is restored on the next open so players don't have
+    // to retype it (persisted in globalState, mirrored back via BOOTSTRAP).
+    nickname: (context.globalState.get<string>('multiNickname', '') || '').slice(0, 16),
     // Timing constants are injected so the webview has a single source of truth.
     roundMs: ROUND_MS,
     totalMs: TOTAL_MS,
@@ -203,6 +206,19 @@ function openMultiGame(context: vscode.ExtensionContext, role: MultiRole, connec
       return;
     }
     const msg = raw as { to?: unknown; type?: unknown };
+
+    // Persist the local player's chosen nickname. This message is for the
+    // extension itself and must never be relayed to the WebSocket peers.
+    if (msg.type === 'setNickname') {
+      const name = typeof (raw as { name?: unknown }).name === 'string'
+        ? ((raw as { name?: string }).name as string).trim().slice(0, 16)
+        : '';
+      if (name) {
+        void context.globalState.update('multiNickname', name);
+      }
+      return;
+    }
+
     let payload: string;
     try {
       payload = JSON.stringify(raw);

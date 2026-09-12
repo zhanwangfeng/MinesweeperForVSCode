@@ -5,6 +5,11 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.7] - 2026-09-12
+
+### Added
+- Multiplayer nickname persistence: the name you set in the lobby is now stored in the extension's `globalState` and automatically pre-filled the next time you open or rejoin a room (host or client), so you no longer have to retype it after a reload, a reconnect, or restarting the panel.
+
 ## [1.2.6] - 2026-09-12
 
 ### Fixed

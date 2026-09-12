@@ -51,7 +51,7 @@ Two extra TreeView entries appear below the difficulty items:
 
 ### Nicknames
 
-Every player (the host included) can set a display name while in the lobby by clicking the **✎** button next to their name in the player list; clients also have a nickname box in the sidebar. For clients the change is sent to the host and broadcast to all, while the host updates its own name directly. Names are capped at **16 characters**. Renaming is **lobby-only**: once a match starts the rename entry points disappear and any unfinished edit is discarded, so you cannot change your name mid-match.
+Every player (the host included) can set a display name while in the lobby by clicking the **✎** button next to their name in the player list; clients also have a nickname box in the sidebar. For clients the change is sent to the host and broadcast to all, while the host updates its own name directly. Names are capped at **16 characters**. Renaming is **lobby-only**: once a match starts the rename entry points disappear and any unfinished edit is discarded, so you cannot change your name mid-match. Your nickname is saved the moment you set it and is automatically pre-filled the next time you open a room (host or client), so you only have to type it once.
 
 ### Test bots
 
