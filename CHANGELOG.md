@@ -5,6 +5,16 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.6] - 2026-09-12
+
+### Fixed
+- Manifest localization now actually resolves `%...%` placeholders. In 1.2.5 the `localizations` translation `id` was corrected, but the base `package.nls.json` file was still missing from the VSIX because `files` only whitelisted `package.nls.zh-cn.json`. Without the base file VS Code cannot resolve manifest placeholders, so command/view titles continued to show raw strings such as `%command.setLanguage.title%` and `%view.container.title%`. Added `package.nls.json` to `files` and removed the now-redundant `contributes.localizations` entry (that contribution point is for language packs; an extension localizes its own manifest through `package.nls*.json` files).
+
+## [1.2.5] - 2026-09-12
+
+### Fixed
+- Chinese (zh-cn) localization of the extension manifest now works. The `localizations` contribution used a bare extension name as the translation `id`, so VS Code could not associate `package.nls.zh-cn.json` with this extension and command titles showed raw placeholders (e.g. `%command.setLanguage.title%`). The `id` is now the full `publisher.name` (`zhanwangfeng.minesweeper-for-vscode`).
+
 ## [1.2.4] - 2026-09-12
 
 ### Removed
