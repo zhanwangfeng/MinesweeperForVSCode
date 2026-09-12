@@ -49,6 +49,10 @@ Two extra TreeView entries appear below the difficulty items:
 10. If a player disconnects mid-round, their pick for that round is dropped and the lobby is updated, but their score is kept and the match continues.
 11. Players (including bots) who join **after a match has started** are tagged **Waiting for next game** in the player list — they cannot pick during the current match and only become active when the next match begins.
 
+**Pick popup:** on your turn, clicking an *unrevealed* cell opens a small popup where you mark it as **Mine** or **Not a mine**. Clicking anywhere else — or clicking an already-revealed cell — closes the popup. Clicking an already-revealed cell never opens it.
+
+**Game Over leaderboard:** when the match ends, the score leaderboard (gold / silver / bronze for the top three) appears inside its own panel. It is kept within the panel with proper margins, and its player list scrolls independently if the room is too large to fit all players at once.
+
 ### Nicknames
 
 Every player (the host included) can set a display name while in the lobby by clicking the **✎** button next to their name in the player list; clients also have a nickname box in the sidebar. For clients the change is sent to the host and broadcast to all, while the host updates its own name directly. Names are capped at **16 characters**. Renaming is **lobby-only**: once a match starts the rename entry points disappear and any unfinished edit is discarded, so you cannot change your name mid-match. Your nickname is saved the moment you set it and is automatically pre-filled the next time you open a room (host or client), so you only have to type it once.

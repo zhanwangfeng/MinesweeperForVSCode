@@ -5,6 +5,14 @@ All notable changes to the "minesweeper-for-vscode" extension are documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.8] - 2026-09-12
+
+### Fixed (Online Multiplayer)
+
+- **Pick popup on revealed cells** — clicking an already-revealed cell no longer opens the pick popup. Clicking one now also dismisses any popup that is already open (previously the popup stayed visible because the revealed cell's click handler called `stopPropagation`, so the document-level close handler never saw the click).
+- **Overlay flicker** — the Game Over leaderboard and the "waiting for players" lobby overlay no longer flash when the host adds a bot or changes the board size. The overlay used to be fully rebuilt on every `render()`, replaying its entrance animation; it is now built once per phase and only refreshes its dynamic text in place.
+- **Leaderboard layout** — the Game Over leaderboard is now constrained inside its parent panel with proper margins, and its player list scrolls independently when there are too many players to fit.
+
 ## [1.2.7] - 2026-09-12
 
 ### Added

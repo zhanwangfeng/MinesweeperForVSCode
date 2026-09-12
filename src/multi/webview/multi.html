@@ -307,21 +307,28 @@
   }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .ov-card {
-    width: min(100%, 360px); padding: 20px 22px; text-align: center;
+    width: min(100%, 380px); max-height: 100%; padding: 20px 22px; text-align: center;
+    display: flex; flex-direction: column; overflow: hidden;
     background: var(--glass-strong); border: 1px solid var(--stroke);
     border-radius: 16px; box-shadow: var(--shadow);
     animation: popIn 0.3s ease;
   }
   @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
-  .ov-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #eaf8ff; }
+  .ov-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #eaf8ff; flex: none; }
   .ov-addr {
     font-family: 'Courier New', monospace; font-size: 14px; font-weight: 700; color: var(--accent);
     background: rgba(79, 195, 247, 0.12); border: 1px dashed var(--stroke-strong);
     border-radius: 8px; padding: 6px 10px; margin: 8px auto; display: inline-block;
   }
-  .ov-sub { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+  .ov-sub { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; flex: none; }
 
-  .rank-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+  .rank-list {
+    display: flex; flex-direction: column; gap: 6px; margin-top: 14px;
+    overflow-y: auto; flex: 1 1 auto; min-height: 0; padding-right: 4px;
+  }
+  .rank-list::-webkit-scrollbar { width: 8px; }
+  .rank-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 8px; }
+  .rank-list::-webkit-scrollbar-track { background: transparent; }
   .rank-row {
     display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px;
     background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; font-size: 13px;
@@ -597,6 +604,19 @@
           cellEl.addEventListener('click', (ev) => {
             ev.stopPropagation();
             if (state.phase !== 'playing' || state.resolving || myWaiting()) { return; }
+            // A revealed cell can no longer be picked (it is either a numbered
+            // safe cell or a mine), so never open the picker for it. This guards
+            // clicks on cells that lost their `clickable` class after a reveal
+            // but still carry this handler.
+            const idx = Number(cellEl.dataset.r) * state.cols + Number(cellEl.dataset.c);
+            if (revealedMap.has(idx)) {
+              // A revealed cell can't be picked, so instead dismiss any picker
+              // that is currently open. The stopPropagation above already keeps
+              // this click from reaching the document-level close handler, hence
+              // we must close it explicitly here.
+              closePicker();
+              return;
+            }
             openPicker(Number(cellEl.dataset.r), Number(cellEl.dataset.c), ev);
           });
           boardEl.appendChild(cellEl);
@@ -862,85 +882,144 @@
     $('totalVal').classList.toggle('danger', playing && totalRemain <= 30000);
   }
 
+  // Tracks which phase's overlay card is currently built into the DOM. We only
+  // (re)build the card structure — and replay its popIn/fadeIn entrance
+  // animation — when the phase actually changes. Re-renders within the same
+  // phase (e.g. adding a bot, resizing the board) update dynamic text in place
+  // instead of destroying and recreating the card, which used to flash.
+  let overlayPhase = null;
+  let lobbyTitleEl = null;
+  let lobbyAddrEl = null;
+  let lobbySubEl = null;
+
+  function buildOverCard(ov) {
+    ov.innerHTML = '';
+    ov.style.display = 'flex';
+    const card = document.createElement('div');
+    card.className = 'ov-card';
+
+    const t = document.createElement('div');
+    t.className = 'ov-title';
+    t.textContent = D.gameOver || 'Game Over';
+    card.appendChild(t);
+
+    const sub = document.createElement('div');
+    sub.className = 'ov-sub';
+    sub.textContent = D.ranking || '';
+    card.appendChild(sub);
+
+    const list = document.createElement('div');
+    list.className = 'rank-list';
+    lastRanking.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'rank-row r' + Math.min(3, p.rank) + (p.id === myId ? ' me' : '');
+
+      const no = document.createElement('span');
+      no.className = 'rank-no';
+      no.textContent = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : '#' + p.rank;
+
+      const dot = document.createElement('span');
+      dot.className = 'pdot';
+      dot.style.background = colorOf(p.id);
+
+      const nm = document.createElement('span');
+      nm.className = 'rank-name';
+      nm.textContent = p.name + (p.id === myId ? ' (' + (D.youBadge || '') + ')' : '');
+
+      const sc = document.createElement('span');
+      sc.className = 'rank-score';
+      sc.textContent = String(p.score);
+
+      row.appendChild(no);
+      row.appendChild(dot);
+      row.appendChild(nm);
+      row.appendChild(sc);
+      list.appendChild(row);
+    });
+    card.appendChild(list);
+    ov.appendChild(card);
+  }
+
+  function buildLobbyCard(ov) {
+    ov.innerHTML = '';
+    ov.style.display = 'flex';
+    const card = document.createElement('div');
+    card.className = 'ov-card';
+
+    const t = document.createElement('div');
+    t.className = 'ov-title';
+    t.textContent = IS_HOST ? (D.connHostWaiting || '') : (D.lobbyHint || '');
+    card.appendChild(t);
+    lobbyTitleEl = t;
+
+    // Address + sub-hint only exist for the host and may appear after the card
+    // is first built (e.g. hostAddr arriving), so they are created lazily in
+    // updateLobbyCard rather than here.
+    lobbyAddrEl = null;
+    lobbySubEl = null;
+    ov.appendChild(card);
+    updateLobbyCard(ov);
+  }
+
+  function updateLobbyCard(ov) {
+    if (lobbyTitleEl) {
+      lobbyTitleEl.textContent = IS_HOST ? (D.connHostWaiting || '') : (D.lobbyHint || '');
+    }
+    if (IS_HOST) {
+      const card = ov.firstChild;
+      if (hostAddr) {
+        if (!lobbyAddrEl) {
+          lobbyAddrEl = document.createElement('div');
+          lobbyAddrEl.className = 'ov-addr';
+          // Insert right after the title and before the sub-hint (if present).
+          card.insertBefore(lobbyAddrEl, lobbySubEl);
+        }
+        lobbyAddrEl.textContent = fmt(D.hostAddr, { addr: hostAddr });
+      } else if (lobbyAddrEl) {
+        lobbyAddrEl.remove();
+        lobbyAddrEl = null;
+      }
+      if (!lobbySubEl) {
+        lobbySubEl = document.createElement('div');
+        lobbySubEl.className = 'ov-sub';
+        card.appendChild(lobbySubEl);
+      }
+      lobbySubEl.textContent = hostCanStart() ? (D.lobbyReady || '') : (D.lobbyHostHint || '');
+    }
+  }
+
   function renderOverlay() {
     const ov = $('overlay');
-    ov.innerHTML = '';
 
     if (state.phase === 'over' && lastRanking) {
-      ov.style.display = 'flex';
-      const card = document.createElement('div');
-      card.className = 'ov-card';
-
-      const t = document.createElement('div');
-      t.className = 'ov-title';
-      t.textContent = D.gameOver || 'Game Over';
-      card.appendChild(t);
-
-      const sub = document.createElement('div');
-      sub.className = 'ov-sub';
-      sub.textContent = D.ranking || '';
-      card.appendChild(sub);
-
-      const list = document.createElement('div');
-      list.className = 'rank-list';
-      lastRanking.forEach((p) => {
-        const row = document.createElement('div');
-        row.className = 'rank-row r' + Math.min(3, p.rank) + (p.id === myId ? ' me' : '');
-
-        const no = document.createElement('span');
-        no.className = 'rank-no';
-        no.textContent = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : '#' + p.rank;
-
-        const dot = document.createElement('span');
-        dot.className = 'pdot';
-        dot.style.background = colorOf(p.id);
-
-        const nm = document.createElement('span');
-        nm.className = 'rank-name';
-        nm.textContent = p.name + (p.id === myId ? ' (' + (D.youBadge || '') + ')' : '');
-
-        const sc = document.createElement('span');
-        sc.className = 'rank-score';
-        sc.textContent = String(p.score);
-
-        row.appendChild(no);
-        row.appendChild(dot);
-        row.appendChild(nm);
-        row.appendChild(sc);
-        list.appendChild(row);
-      });
-      card.appendChild(list);
-      ov.appendChild(card);
+      // Ranking is fixed once the game ends; build the card only once so its
+      // entrance animation never replays on subsequent renders.
+      if (overlayPhase !== 'over') {
+        buildOverCard(ov);
+        overlayPhase = 'over';
+      }
       return;
     }
 
     if (state.phase === 'lobby') {
-      ov.style.display = 'flex';
-      const card = document.createElement('div');
-      card.className = 'ov-card';
-
-      const t = document.createElement('div');
-      t.className = 'ov-title';
-      t.textContent = IS_HOST ? (D.connHostWaiting || '') : (D.lobbyHint || '');
-      card.appendChild(t);
-
-      if (IS_HOST && hostAddr) {
-        const a = document.createElement('div');
-        a.className = 'ov-addr';
-        a.textContent = fmt(D.hostAddr, { addr: hostAddr });
-        card.appendChild(a);
+      if (overlayPhase !== 'lobby') {
+        buildLobbyCard(ov);
+        overlayPhase = 'lobby';
+      } else {
+        // Same phase: refresh dynamic text in place, no DOM rebuild / no flash.
+        updateLobbyCard(ov);
       }
-      if (IS_HOST) {
-        const p = document.createElement('div');
-        p.className = 'ov-sub';
-        p.textContent = hostCanStart() ? (D.lobbyReady || '') : (D.lobbyHostHint || '');
-        card.appendChild(p);
-      }
-      ov.appendChild(card);
       return;
     }
 
-    ov.style.display = 'none';
+    // playing / resolving / undefined: no overlay. Only clear when we actually
+    // had one, so we don't thrash the DOM on every render during play.
+    if (overlayPhase !== null) {
+      ov.innerHTML = '';
+      ov.style.display = 'none';
+      overlayPhase = null;
+      lobbyTitleEl = lobbyAddrEl = lobbySubEl = null;
+    }
   }
 
   function renderConn() {
